@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:plant_disease_detection/screens/homepage.dart';
+import 'package:plant_disease_detection/bottom_navigation_bar.dart';
 
 void main() {
   runApp(const MyApp());
@@ -12,7 +12,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      routes: {'/': (context) => MyHomePage()},
+      routes: {'/': (context) => MyBottomNavigationBar()},
     );
   }
 }
