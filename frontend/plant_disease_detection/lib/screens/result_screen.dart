@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:plant_disease_detection/models/scan_result.dart';
+import 'package:plant_disease_detection/services/api_service.dart';
 import 'package:plant_disease_detection/theme/app_theme.dart';
 
 // ─────────────────────────────────────────
@@ -21,32 +23,71 @@ class ResultScreen extends StatefulWidget {
 
 class _ResultScreenState extends State<ResultScreen> {
   bool _isSaved = false;
+  bool _isSaving = false;
 
-  void _saveToHistory() {
-    // TODO: Call API to save this scan to history
-    // await ApiService.saveHistory(...)
-    setState(() => _isSaved = true);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Scan saved to history'),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: AppColors.success,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
+  ScanResult _parseResult(dynamic args) {
+    if (args is ScanResult) {
+      return args;
+    }
+
+    if (args is Map<String, dynamic>) {
+      return ScanResult.fromJson(args);
+    }
+
+    return const ScanResult(
+      imagePath: '',
+      disease: 'Unknown',
+      confidence: 0.0,
+      plant: 'Unknown plant',
+      isHealthy: false,
     );
+  }
+
+  Future<void> _saveToHistory(ScanResult result) async {
+    if (_isSaved || _isSaving) return;
+
+    setState(() => _isSaving = true);
+
+    try {
+      await ApiService.saveHistory(result);
+      if (!mounted) return;
+
+      setState(() => _isSaved = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Scan saved to history'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.success,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not save scan. Please try again.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     // Data passed from HomeScreen via Navigator
     // In real app this will be the API response object
-    final args =
-        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-
-    final String imagePath = args?['imagePath'] ?? '';
-    final String disease = args?['disease'] ?? 'Unknown';
-    final double confidence = (args?['confidence'] ?? 0.0) as double;
-    final String plant = args?['plant'] ?? 'Unknown plant';
+    final args = ModalRoute.of(context)?.settings.arguments;
+    final result = _parseResult(args);
+    final imagePath = result.imagePath;
+    final disease = result.disease;
+    final confidence = result.confidence;
+    final plant = result.plant;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -119,11 +160,19 @@ class _ResultScreenState extends State<ResultScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: _isSaved ? null : _saveToHistory,
+                onPressed: (_isSaved || _isSaving)
+                    ? null
+                    : () => _saveToHistory(result),
                 icon: Icon(
-                  _isSaved ? Icons.check_circle_outline : Icons.save_outlined,
+                  _isSaved
+                      ? Icons.check_circle_outline
+                      : (_isSaving ? Icons.hourglass_top : Icons.save_outlined),
                 ),
-                label: Text(_isSaved ? 'Saved to history' : 'Save to history'),
+                label: Text(
+                  _isSaved
+                      ? 'Saved to history'
+                      : (_isSaving ? 'Saving...' : 'Save to history'),
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -151,13 +200,15 @@ class _AnnotatedImageCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasImage = imagePath.isNotEmpty && File(imagePath).existsSync();
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(20),
       child: Stack(
         children: [
           // The annotated image from backend
           // In a real call: Image.network(annotatedImageUrl, ...)
-          imagePath.isNotEmpty
+          hasImage
               ? Image.file(
                   File(imagePath),
                   width: double.infinity,
@@ -182,7 +233,7 @@ class _AnnotatedImageCard extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.55),
+                color: Colors.black.withValues(alpha: 0.55),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: const Row(
@@ -235,6 +286,8 @@ class _DiagnosisCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final safeConfidence = confidence.clamp(0.0, 1.0);
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -270,7 +323,7 @@ class _DiagnosisCard extends StatelessWidget {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: _severityColor.withOpacity(0.1),
+                  color: _severityColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -288,14 +341,14 @@ class _DiagnosisCard extends StatelessWidget {
 
           // Confidence bar
           Text(
-            'Confidence: ${(confidence * 100).toStringAsFixed(0)}%',
+            'Confidence: ${(safeConfidence * 100).toStringAsFixed(0)}%',
             style: AppText.label,
           ),
           const SizedBox(height: 6),
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
-              value: confidence,
+              value: safeConfidence,
               minHeight: 8,
               backgroundColor: AppColors.divider,
               valueColor: AlwaysStoppedAnimation<Color>(_severityColor),

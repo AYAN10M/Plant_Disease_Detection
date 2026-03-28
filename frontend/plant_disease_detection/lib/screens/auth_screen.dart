@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:plant_disease_detection/services/auth_service.dart';
 import 'package:plant_disease_detection/theme/app_theme.dart';
-
 
 // ─────────────────────────────────────────
 //  AuthScreen
@@ -32,6 +32,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
   // Simulates a loading state when the button is pressed
   bool _isLoading = false;
+  final AuthService _authService = AuthService();
 
   @override
   void dispose() {
@@ -42,21 +43,46 @@ class _AuthScreenState extends State<AuthScreen> {
     super.dispose();
   }
 
-  void _submit() async {
+  Future<void> _submit() async {
     // Validate all form fields first
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
-    // TODO: Replace this delay with your actual API call
-    // e.g. await ApiService.login(email, password)
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      final email = _emailController.text.trim();
+      final password = _passwordController.text;
+      final name = _nameController.text.trim();
 
-    setState(() => _isLoading = false);
+      if (_isLogin) {
+        await _authService.signIn(email: email, password: password);
+      } else {
+        await _authService.register(
+          name: name,
+          email: email,
+          password: password,
+        );
+      }
 
-    // Navigate to home after successful auth
-    if (mounted) {
+      if (!mounted) return;
       Navigator.pushReplacementNamed(context, '/home');
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), behavior: SnackBarBehavior.floating),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Authentication failed. Please try again.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -215,6 +241,9 @@ class _AuthScreenState extends State<AuthScreen> {
                         setState(() {
                           _isLogin = !_isLogin;
                           _formKey.currentState?.reset();
+                          _nameController.clear();
+                          _emailController.clear();
+                          _passwordController.clear();
                         });
                       },
                       child: Text(
