@@ -26,15 +26,15 @@ class Detection(models.Model):
     disease        = models.ForeignKey(
                        Disease,
                        on_delete=models.SET_NULL,
-                       null=True, blank=True,       # null if low confidence
+                       null=True, blank=True,
                        related_name='detections'
                      )
     uploaded_image = models.ImageField(upload_to='detections/uploads/')
     gradcam_image  = models.ImageField(
                        upload_to='detections/gradcam/',
-                       null=True, blank=True        # null if low confidence
+                       null=True, blank=True
                      )
-    confidence     = models.FloatField(default=0.0) # e.g. 0.87 means 87%
+    confidence     = models.FloatField(default=0.0)
     status         = models.CharField(
                        max_length=20,
                        choices=STATUS_CHOICES,
@@ -43,7 +43,7 @@ class Detection(models.Model):
     created_at     = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ['-created_at']   # newest first always
+        ordering = ['-created_at']
 
     def __str__(self):
         return f"{self.user.email} — {self.plant} — {self.status}"

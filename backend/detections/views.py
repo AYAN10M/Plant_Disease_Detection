@@ -1,55 +1,83 @@
-from rest_framework import generics, permissions
-
-from .ml_model import generate_gradcam, run_prediction
+from rest_framework import generics, permissions, status
+from rest_framework.response import Response
+from rest_framework.views import APIView
 from .models import Detection
 from .serializers import DetectionCreateSerializer, DetectionResultSerializer
+from .ml_model import run_prediction, generate_gradcam
+
+CONFIDENCE_THRESHOLD = 0.60   # below this → ask user to retake photo
 
 
-class DetectView(generics.CreateAPIView):
-	serializer_class = DetectionCreateSerializer
-	permission_classes = [permissions.IsAuthenticated]
+class DetectView(APIView):
+    """Core endpoint — upload image → get disease result"""
+    permission_classes = [permissions.IsAuthenticated]
 
-	def perform_create(self, serializer):
-		detection = serializer.save(user=self.request.user)
+    def post(self, request):
+        serializer = DetectionCreateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-		disease_id, confidence = run_prediction(
-			detection.uploaded_image.path,
-			detection.plant_id,
-		)
-		gradcam_path = generate_gradcam(detection.uploaded_image.path)
+        plant          = serializer.validated_data['plant']
+        uploaded_image = serializer.validated_data['uploaded_image']
 
-		if disease_id is None:
-			detection.status = 'failed'
-			detection.disease = None
-			detection.confidence = 0.0
-		else:
-			detection.disease_id = disease_id
-			detection.confidence = confidence
-			detection.status = 'success' if confidence >= 0.60 else 'low_confidence'
+        # Step 1 — run ML prediction (mock for now)
+        disease_id, confidence = run_prediction(
+            image_path=uploaded_image,
+            plant_id=plant.id
+        )
 
-		if gradcam_path:
-			detection.gradcam_image = gradcam_path
+        # Step 2 — check confidence threshold
+        if confidence < CONFIDENCE_THRESHOLD:
+            detection = Detection.objects.create(
+                user           = request.user,
+                plant          = plant,
+                disease        = None,
+                uploaded_image = uploaded_image,
+                confidence     = confidence,
+                status         = 'low_confidence'
+            )
+            result = DetectionResultSerializer(detection, context={'request': request})
+            return Response({
+                'status'  : 'low_confidence',
+                'message' : 'Image quality too low. Please retake a clearer photo.',
+                'data'    : result.data
+            }, status=status.HTTP_200_OK)
 
-		detection.save(update_fields=['disease', 'confidence', 'status', 'gradcam_image'])
+        # Step 3 — generate Grad-CAM (mock for now)
+        gradcam_path = generate_gradcam(uploaded_image)
+
+        # Step 4 — save successful detection
+        detection = Detection.objects.create(
+            user           = request.user,
+            plant          = plant,
+            disease_id     = disease_id,
+            uploaded_image = uploaded_image,
+            gradcam_image  = gradcam_path,
+            confidence     = confidence,
+            status         = 'success'
+        )
+
+        result = DetectionResultSerializer(detection, context={'request': request})
+        return Response({
+            'status' : 'success',
+            'data'   : result.data
+        }, status=status.HTTP_201_CREATED)
 
 
 class DetectionHistoryView(generics.ListAPIView):
-	serializer_class = DetectionResultSerializer
-	permission_classes = [permissions.IsAuthenticated]
+    """All past detections for the logged-in user"""
+    serializer_class   = DetectionResultSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
-	def get_queryset(self):
-		return (
-			Detection.objects.filter(user=self.request.user)
-			.select_related('plant', 'disease', 'disease__plant')
-		)
+    def get_queryset(self):
+        return Detection.objects.filter(user=self.request.user)
 
 
 class DetectionDetailView(generics.RetrieveAPIView):
-	serializer_class = DetectionResultSerializer
-	permission_classes = [permissions.IsAuthenticated]
+    """Single past detection by ID"""
+    serializer_class   = DetectionResultSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
-	def get_queryset(self):
-		return (
-			Detection.objects.filter(user=self.request.user)
-			.select_related('plant', 'disease', 'disease__plant')
-		)
+    def get_queryset(self):
+        # users can only see their own detections
+        return Detection.objects.filter(user=self.request.user)
