@@ -1,32 +1,42 @@
 import 'package:flutter/material.dart';
-import 'package:plant_disease_detection/screens/auth_screen.dart';
-import 'package:plant_disease_detection/screens/result_screen.dart';
-import 'package:plant_disease_detection/theme/app_theme.dart';
-import 'package:plant_disease_detection/widgets/main_shell.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'core/theme/app_theme.dart';
+import 'features/home/screens/demo_home_screen.dart';
 
 void main() {
-  runApp(const PlantDiseaseApp());
+  runApp(
+    // ProviderScope is required for Riverpod to work throughout the app.
+    const ProviderScope(child: MidoriApp()),
+  );
 }
 
-class PlantDiseaseApp extends StatelessWidget {
-  const PlantDiseaseApp({super.key});
+class MidoriApp extends StatefulWidget {
+  const MidoriApp({super.key});
+
+  @override
+  State<MidoriApp> createState() => _MidoriAppState();
+}
+
+class _MidoriAppState extends State<MidoriApp> {
+  bool _isDarkMode = false;
+
+  void _setDarkMode(bool value) {
+    setState(() => _isDarkMode = value);
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'LeafScan',
+      title: 'Midori',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.theme,
-
-      // During development change to '/home' to skip login
-      initialRoute: '/auth',
-
-      routes: {
-        '/auth': (ctx) => const AuthScreen(),
-        '/home': (ctx) => const MainShell(), // <-- shell with bottom nav
-        '/result': (ctx) => const ResultScreen(),
-        // History and Scan are now tabs inside MainShell, not named routes
-      },
+      theme:     AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: _isDarkMode ? ThemeMode.dark : ThemeMode.light,
+      home: DemoHomeScreen(
+        isDarkMode: _isDarkMode,
+        onThemeChanged: _setDarkMode,
+      ),
     );
   }
 }

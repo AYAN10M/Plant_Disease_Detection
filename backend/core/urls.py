@@ -5,8 +5,15 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/users/', include('users.urls')),
-     path('api/plants/', include('plants.urls')),
+
+    # ── Core Plant & Disease data ────────────────────────────────────────────
+    path('api/plants/', include('plants.urls')),
     path('api/diseases/', include('diseases.urls')),
+
+    # ── Detection (scan) ─────────────────────────────────────────────────────
     path('api/detections/', include('detections.urls')),
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+    # ── Weather ──────────────────────────────────────────────────────────────
+    path('api/weather/', include('weather.urls')),
+
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

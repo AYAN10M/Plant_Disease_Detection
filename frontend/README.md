@@ -1,4 +1,4 @@
-# plant_disease_detection
+# frontend
 
 A new Flutter project.
 

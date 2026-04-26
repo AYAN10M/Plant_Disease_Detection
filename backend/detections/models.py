@@ -1,5 +1,4 @@
 from django.db import models
-from django.conf import settings
 from plants.models import Plant
 from diseases.models import Disease
 
@@ -7,16 +6,12 @@ from diseases.models import Disease
 class Detection(models.Model):
 
     STATUS_CHOICES = [
+        ('processing',     'Processing'),
         ('success',        'Success'),
         ('low_confidence', 'Low Confidence'),
         ('failed',         'Failed'),
     ]
 
-    user           = models.ForeignKey(
-                       settings.AUTH_USER_MODEL,
-                       on_delete=models.CASCADE,
-                       related_name='detections'
-                     )
     plant          = models.ForeignKey(
                        Plant,
                        on_delete=models.SET_NULL,
@@ -38,12 +33,14 @@ class Detection(models.Model):
     status         = models.CharField(
                        max_length=20,
                        choices=STATUS_CHOICES,
-                       default='success'
+                       default='processing'
                      )
     created_at     = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['-created_at']
+        verbose_name        = 'Detection'
+        verbose_name_plural = 'Detections'
 
     def __str__(self):
-        return f"{self.user.email} — {self.plant} — {self.status}"
+        return f"{self.plant} — {self.status} ({self.confidence:.0%})"

@@ -1,7 +1,7 @@
 from pathlib import Path
 from dotenv import load_dotenv
-from datetime import timedelta
 import os
+
 
 load_dotenv()
 
@@ -21,18 +21,14 @@ INSTALLED_APPS = [
 
     # Third-party
     'rest_framework',
-    'rest_framework_simplejwt',
     'corsheaders',
 
     # Our apps
-    'users',
     'plants',
     'diseases',
     'detections',
     'weather',
 ]
-
-AUTH_USER_MODEL = 'users.CustomUser'
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
@@ -75,21 +71,20 @@ DATABASES = {
     }
 }
 
+# ── Django REST Framework ────────────────────────────────────────────────────
+# All endpoints are public — Midori has no user authentication.
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ),
     'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.IsAuthenticated',
+        'rest_framework.permissions.AllowAny',
     ),
 }
 
-SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-}
-
-CORS_ALLOW_ALL_ORIGINS = True
+# ── CORS ─────────────────────────────────────────────────────────────────────
+# Allow all origins only in development; tighten in production.
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
+else:
+    CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', '').split(',')
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
@@ -108,3 +103,6 @@ LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'Asia/Kolkata'
 USE_I18N = True
 USE_TZ = True
+
+# ── Weather ──────────────────────────────────────────────────────────────────
+WEATHER_API_KEY = os.getenv('WEATHER_API_KEY', '')
