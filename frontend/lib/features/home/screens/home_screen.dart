@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -5,9 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../data/dummy_catalog.dart';
 import '../models/detection_record.dart';
-import '../models/plant_model.dart';
-import '../services/detection_api_service.dart';
 import '../services/detection_history_store.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -18,19 +18,15 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final DetectionApiService _apiService = DetectionApiService();
   final DetectionHistoryStore _historyStore = DetectionHistoryStore();
   final ImagePicker _picker = ImagePicker();
+  final Random _random = Random();
 
   int _currentIndex = 0;
-  bool _loadingPlants = true;
   bool _loadingHistory = true;
   bool _detecting = false;
-  String? _plantError;
   String? _actionMessage;
-  List<PlantModel> _plants = [];
   List<DetectionHistoryEntry> _history = [];
-  int? _selectedPlantId;
   XFile? _selectedImage;
   Uint8List? _selectedImageBytes;
   DetectionApiResponse? _latestResult;
@@ -38,43 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    if (const bool.fromEnvironment('FLUTTER_TEST')) {
-      return;
-    }
-    _bootstrap();
-  }
-
-  Future<void> _bootstrap() async {
-    await Future.wait([_loadPlants(), _loadHistory()]);
-  }
-
-  Future<void> _loadPlants() async {
-    setState(() {
-      _loadingPlants = true;
-      _plantError = null;
-    });
-
-    try {
-      final plants = await _apiService.fetchPlants();
-      if (mounted) {
-        setState(() {
-          _plants = plants;
-          _selectedPlantId = plants.isNotEmpty ? plants.first.id : null;
-        });
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _plantError = 'Could not load plants. Check the backend connection.';
-        });
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _loadingPlants = false;
-        });
-      }
-    }
+    _loadHistory();
   }
 
   Future<void> _loadHistory() async {
@@ -110,11 +70,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _runDetection() async {
-    if (_selectedPlantId == null) {
-      _showSnackBar('Choose a plant first.');
-      return;
-    }
-
     if (_selectedImage == null || _selectedImageBytes == null) {
       _showSnackBar('Pick an image to analyze.');
       return;
@@ -126,10 +81,36 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      final response = await _apiService.detect(
-        plantId: _selectedPlantId!,
-        imageBytes: _selectedImageBytes!,
-        fileName: _selectedImage!.name,
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+
+      final plant = demoPlants[_random.nextInt(demoPlants.length)];
+      final disease = plant.diseases[_random.nextInt(plant.diseases.length)];
+      final confidence = double.parse(
+        (_random.nextDouble() * 0.59 + 0.40).toStringAsFixed(2),
+      );
+      final status = confidence < 0.60 ? 'low_confidence' : 'success';
+      final message = status == 'success'
+          ? 'Demo detection generated locally on this device.'
+          : 'Confidence is low. Try scanning another leaf in better lighting.';
+
+      final result = DetectionResult(
+        id: DateTime.now().millisecondsSinceEpoch,
+        plantName: plant.name,
+        diseaseName: disease.name,
+        diseaseDescription: disease.symptoms,
+        diseaseRemedy: disease.remedy,
+        uploadedImageUrl: _selectedImage!.name,
+        gradcamImageUrl: null,
+        confidence: confidence,
+        confidencePct: '${(confidence * 100).toStringAsFixed(1)}%',
+        status: status,
+        createdAt: DateTime.now(),
+      );
+
+      final response = DetectionApiResponse(
+        status: status,
+        message: message,
+        data: result,
       );
 
       if (!mounted) {
@@ -138,24 +119,26 @@ class _HomeScreenState extends State<HomeScreen> {
 
       setState(() {
         _latestResult = response;
-        _actionMessage = response.message;
+        _actionMessage = message;
       });
 
-      if (response.data != null) {
-        final historyEntry = DetectionHistoryEntry.fromDetection(
-          result: response.data!,
-          message: response.message,
-        );
-        await _historyStore.saveEntry(historyEntry);
+      final historyEntry = DetectionHistoryEntry.fromDetection(
+        result: result,
+        message: message,
+        diseaseCause: disease.cause,
+        diseasePrevention: disease.prevention,
+        imageBytes: _selectedImageBytes,
+        gradcamBytes: null,
+      );
+      await _historyStore.saveEntry(historyEntry);
 
-        if (mounted) {
-          setState(() {
-            _history = [historyEntry, ..._history];
-          });
-        }
+      if (mounted) {
+        setState(() {
+          _history = [historyEntry, ..._history];
+        });
       }
     } catch (_) {
-      _showSnackBar('Detection failed. Check the API and try again.');
+      _showSnackBar('Detection failed. Please try again.');
     } finally {
       if (mounted) {
         setState(() {
@@ -183,60 +166,95 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Plant Disease Detector'),
-        actions: [
-          IconButton(
-            onPressed: _loadHistory,
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh history',
-          ),
-        ],
-      ),
+      extendBody: true,
+      appBar: AppBar(title: const Text('Plant Disease Detector')),
       body: IndexedStack(
         index: _currentIndex,
         children: [_buildScanTab(), _buildHistoryTab()],
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.document_scanner_outlined),
-            selectedIcon: Icon(Icons.document_scanner),
-            label: 'Scan',
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        child: SafeArea(top: false, child: _buildFloatingCuboidNavBar()),
+      ),
+    );
+  }
+
+  Future<void> _onTabSelected(int index) async {
+    if (_currentIndex == index) {
+      return;
+    }
+
+    setState(() {
+      _currentIndex = index;
+    });
+
+    if (index == 1) {
+      await _loadHistory();
+    }
+  }
+
+  Widget _buildFloatingCuboidNavBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFBDBDBD), width: 1.2),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _NavBarItem(
+              label: 'Scan',
+              selected: _currentIndex == 0,
+              icon: Icons.document_scanner_outlined,
+              activeIcon: Icons.document_scanner,
+              onTap: () => _onTabSelected(0),
+            ),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.history_outlined),
-            selectedIcon: Icon(Icons.history),
-            label: 'History',
+          Expanded(
+            child: _NavBarItem(
+              label: 'History',
+              selected: _currentIndex == 1,
+              icon: Icons.history_outlined,
+              activeIcon: Icons.history,
+              onTap: () => _onTabSelected(1),
+            ),
           ),
         ],
       ),
     );
   }
 
+  EdgeInsets _responsivePadding(BoxConstraints constraints) {
+    final horizontal = constraints.maxWidth >= 900
+        ? 28.0
+        : constraints.maxWidth >= 600
+        ? 24.0
+        : 20.0;
+    return EdgeInsets.fromLTRB(horizontal, 20, horizontal, 20);
+  }
+
   Widget _buildScanTab() {
     return RefreshIndicator(
       onRefresh: () async {
-        await _loadPlants();
         await _loadHistory();
       },
-      child: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          _buildHeroCard(),
-          const SizedBox(height: 16),
-          _buildPlantPickerCard(),
-          const SizedBox(height: 16),
-          _buildImageCard(),
-          const SizedBox(height: 16),
-          if (_latestResult != null) _buildResultCard(_latestResult!),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) => Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: ListView(
+              padding: _responsivePadding(constraints).copyWith(bottom: 120),
+              children: [
+                _buildHeroCard(),
+                const SizedBox(height: 16),
+                _buildImageCard(),
+                const SizedBox(height: 16),
+                if (_latestResult != null) _buildResultCard(_latestResult!),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -274,78 +292,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 SizedBox(height: 6),
                 Text(
-                  'Pick a plant, upload a photo, and keep the result on this device.',
+                  'Upload a photo and let the app choose a local demo result automatically.',
                   style: TextStyle(color: Colors.white70),
                 ),
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildPlantPickerCard() {
-    return Card(
-      elevation: 0,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Choose plant',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 12),
-            if (_loadingPlants)
-              const Center(child: CircularProgressIndicator())
-            else if (_plantError != null)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(_plantError!, style: const TextStyle(color: Colors.red)),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: _loadPlants,
-                    child: const Text('Retry'),
-                  ),
-                ],
-              )
-            else
-              DropdownButtonFormField<int>(
-                initialValue: _selectedPlantId,
-                items: _plants
-                    .map(
-                      (plant) => DropdownMenuItem(
-                        value: plant.id,
-                        child: Text(
-                          plant.scientificName.isEmpty
-                              ? plant.name
-                              : '${plant.name} (${plant.scientificName})',
-                        ),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedPlantId = value;
-                  });
-                },
-                decoration: const InputDecoration(
-                  labelText: 'Plant',
-                  prefixIcon: Icon(Icons.eco_outlined),
-                ),
-              ),
-            if (_actionMessage != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                _actionMessage!,
-                style: const TextStyle(color: AppColors.textSecondary),
-              ),
-            ],
-          ],
-        ),
       ),
     );
   }
@@ -469,6 +422,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ],
+            const SizedBox(height: 10),
+            Text(
+              response.message ?? '',
+              style: const TextStyle(color: AppColors.textSecondary),
+            ),
           ],
         ),
       ),
@@ -478,55 +436,65 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildHistoryTab() {
     return RefreshIndicator(
       onRefresh: _loadHistory,
-      child: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'Saved on this device',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-                ),
-              ),
-              TextButton(
-                onPressed: _history.isEmpty ? null : _clearHistory,
-                child: const Text('Clear all'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (_loadingHistory)
-            const Center(child: CircularProgressIndicator())
-          else if (_history.isEmpty)
-            Card(
-              elevation: 0,
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
+      child: LayoutBuilder(
+        builder: (context, constraints) => Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: ListView(
+              padding: _responsivePadding(constraints).copyWith(bottom: 120),
+              children: [
+                Row(
                   children: [
-                    Icon(
-                      Icons.history_toggle_off,
-                      size: 48,
-                      color: Colors.green.shade300,
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'No detection history yet',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
+                    const Expanded(
+                      child: Text(
+                        'Saved on this device',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    const Text('Run a scan and it will appear here.'),
+                    TextButton(
+                      onPressed: _history.isEmpty ? null : _clearHistory,
+                      child: const Text('Clear all'),
+                    ),
                   ],
                 ),
-              ),
-            )
-          else
-            ..._history.map((entry) => _buildHistoryCard(entry)),
-        ],
+                const SizedBox(height: 12),
+                if (_loadingHistory)
+                  const Center(child: CircularProgressIndicator())
+                else if (_history.isEmpty)
+                  Card(
+                    elevation: 0,
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.history_toggle_off,
+                            size: 48,
+                            color: Colors.green.shade300,
+                          ),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'No detection history yet',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text('Run a scan and it will appear here.'),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  ..._history.map((entry) => _buildHistoryCard(entry)),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -549,9 +517,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   width: 72,
                   height: 72,
                   color: Colors.green.shade50,
-                  child: entry.imageUrl == null
+                  child: entry.imageBytes == null
                       ? const Icon(Icons.image_outlined)
-                      : Image.network(entry.imageUrl!, fit: BoxFit.cover),
+                      : Image.memory(entry.imageBytes!, fit: BoxFit.cover),
                 ),
               ),
               const SizedBox(width: 12),
@@ -601,6 +569,58 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavBarItem extends StatelessWidget {
+  const _NavBarItem({
+    required this.label,
+    required this.selected,
+    required this.icon,
+    required this.activeIcon,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final IconData icon;
+  final IconData activeIcon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final fgColor = selected ? Colors.white : const Color(0xFF2B2B2B);
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        margin: const EdgeInsets.all(8),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFF1F1F1F) : Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected ? const Color(0xFF1F1F1F) : Colors.transparent,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(selected ? activeIcon : icon, color: fgColor),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: fgColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -4,11 +4,9 @@ import 'package:midori/main.dart';
 
 void main() {
   testWidgets('Midori app builds the home screen', (WidgetTester tester) async {
-    await tester.pumpWidget(
-      const ProviderScope(child: MidoriApp()),
-    );
+    await tester.pumpWidget(const ProviderScope(child: MidoriApp()));
 
-    // Verify the Midori app bar title is present
-    expect(find.text('Midori'), findsOneWidget);
+    // Verify the production home app bar title is present.
+    expect(find.text('Plant Disease Detector'), findsOneWidget);
   });
 }

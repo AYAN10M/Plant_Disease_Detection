@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/theme/app_theme.dart';
-import 'features/home/screens/demo_home_screen.dart';
+import 'features/home/screens/home_screen.dart';
 
 void main() {
   runApp(
@@ -19,24 +19,15 @@ class MidoriApp extends StatefulWidget {
 }
 
 class _MidoriAppState extends State<MidoriApp> {
-  bool _isDarkMode = false;
-
-  void _setDarkMode(bool value) {
-    setState(() => _isDarkMode = value);
-  }
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Midori',
       debugShowCheckedModeBanner: false,
-      theme:     AppTheme.light,
+      theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: _isDarkMode ? ThemeMode.dark : ThemeMode.light,
-      home: DemoHomeScreen(
-        isDarkMode: _isDarkMode,
-        onThemeChanged: _setDarkMode,
-      ),
+      themeMode: ThemeMode.system,
+      home: const HomeScreen(),
     );
   }
 }

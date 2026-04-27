@@ -1,43 +1,76 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class AppColors {
-  static const spotifyGreen = Color(0xFF1DB954);
-  static const spotifyGreenDark = Color(0xFF1AA34A);
-  static const error = Color(0xFFD32F2F);
+  static const black = Color(0xFF111111);
+  static const white = Color(0xFFFFFFFF);
+  static const gray900 = Color(0xFF1F1F1F);
+  static const gray800 = Color(0xFF2E2E2E);
+  static const gray700 = Color(0xFF4A4A4A);
+  static const gray600 = Color(0xFF666666);
+  static const gray500 = Color(0xFF8A8A8A);
+  static const gray300 = Color(0xFFD1D1D1);
+  static const gray200 = Color(0xFFE5E5E5);
+  static const gray100 = Color(0xFFF2F2F2);
+  static const gray50 = Color(0xFFF8F8F8);
+  static const error = Color(0xFF444444);
 
   // Backward-compatible aliases used by existing screens.
-  static const primary = spotifyGreen;
-  static const primaryLight = Color(0xFF58D68D);
-  static const accent = Color(0xFF6C6C6C);
-  static const background = Color(0xFFF6F6F6);
-  static const surface = Color(0xFFFFFFFF);
-  static const textPrimary = Color(0xFF121212);
-  static const textSecondary = Color(0xFF7A7A7A);
+  static const primary = black;
+  static const primaryLight = gray700;
+  static const accent = gray600;
+  static const background = gray50;
+  static const surface = white;
+  static const textPrimary = black;
+  static const textSecondary = gray600;
 }
 
 class AppTheme {
+  static TextTheme _textTheme(Brightness brightness) {
+    final base = brightness == Brightness.dark
+        ? ThemeData.dark().textTheme
+        : ThemeData.light().textTheme;
+    return GoogleFonts.manropeTextTheme(base).copyWith(
+      titleLarge: GoogleFonts.manrope(
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.2,
+      ),
+      titleMedium: GoogleFonts.manrope(
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.1,
+      ),
+      bodyLarge: GoogleFonts.manrope(fontWeight: FontWeight.w500, height: 1.4),
+      bodyMedium: GoogleFonts.manrope(
+        fontWeight: FontWeight.w500,
+        height: 1.35,
+      ),
+      labelLarge: GoogleFonts.manrope(fontWeight: FontWeight.w700),
+    );
+  }
+
   static ThemeData get light => ThemeData(
     useMaterial3: true,
+    textTheme: _textTheme(Brightness.light),
     colorScheme: const ColorScheme(
       brightness: Brightness.light,
-      primary: AppColors.spotifyGreen,
-      onPrimary: Colors.black,
-      secondary: Color(0xFF2D2D2D),
-      onSecondary: Colors.white,
+      primary: AppColors.black,
+      onPrimary: AppColors.white,
+      secondary: AppColors.gray700,
+      onSecondary: AppColors.white,
       error: AppColors.error,
-      onError: Colors.white,
-      surface: Color(0xFFFFFFFF),
-      onSurface: Color(0xFF121212),
+      onError: AppColors.white,
+      surface: AppColors.white,
+      onSurface: AppColors.black,
     ),
-    scaffoldBackgroundColor: const Color(0xFFF6F6F6),
+    scaffoldBackgroundColor: AppColors.gray50,
     appBarTheme: const AppBarTheme(
-      backgroundColor: Colors.white,
-      foregroundColor: Color(0xFF121212),
+      backgroundColor: AppColors.white,
+      foregroundColor: AppColors.black,
       elevation: 0,
       centerTitle: true,
     ),
     cardTheme: const CardThemeData(
-      color: Colors.white,
+      color: AppColors.white,
       surfaceTintColor: Colors.transparent,
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
@@ -46,23 +79,23 @@ class AppTheme {
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.spotifyGreen,
-        foregroundColor: Colors.black,
+        backgroundColor: AppColors.black,
+        foregroundColor: AppColors.white,
         minimumSize: const Size(double.infinity, 52),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     ),
     floatingActionButtonTheme: const FloatingActionButtonThemeData(
-      backgroundColor: AppColors.spotifyGreen,
-      foregroundColor: Colors.black,
+      backgroundColor: AppColors.black,
+      foregroundColor: AppColors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.all(Radius.circular(16)),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        foregroundColor: const Color(0xFF121212),
-        side: const BorderSide(color: Color(0xFFC8CEC9)),
+        foregroundColor: AppColors.black,
+        side: const BorderSide(color: AppColors.gray300),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         minimumSize: const Size(double.infinity, 52),
       ),
@@ -70,69 +103,70 @@ class AppTheme {
     switchTheme: SwitchThemeData(
       thumbColor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
-          return Colors.black;
+          return AppColors.white;
         }
-        return Colors.white;
+        return AppColors.gray100;
       }),
       trackColor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
-          return AppColors.spotifyGreen;
+          return AppColors.black;
         }
-        return const Color(0xFFD2D8D3);
+        return AppColors.gray300;
       }),
     ),
     navigationBarTheme: const NavigationBarThemeData(
-      indicatorColor: Color(0x2B1DB954),
+      indicatorColor: AppColors.gray200,
       labelTextStyle: WidgetStatePropertyAll(
         TextStyle(fontWeight: FontWeight.w600),
       ),
     ),
     chipTheme: const ChipThemeData(
-      backgroundColor: Color(0xFFE8F7EE),
-      selectedColor: AppColors.spotifyGreen,
-      labelStyle: TextStyle(color: Color(0xFF121212)),
+      backgroundColor: AppColors.gray100,
+      selectedColor: AppColors.gray300,
+      labelStyle: TextStyle(color: AppColors.black),
       padding: EdgeInsets.symmetric(horizontal: 8),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: const Color(0xFFFDFDFD),
+      fillColor: AppColors.white,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFFD3D3D3)),
+        borderSide: const BorderSide(color: AppColors.gray300),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFFD3D3D3)),
+        borderSide: const BorderSide(color: AppColors.gray300),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.spotifyGreen, width: 2),
+        borderSide: const BorderSide(color: AppColors.black, width: 2),
       ),
     ),
   );
 
   static ThemeData get dark => ThemeData(
     useMaterial3: true,
+    textTheme: _textTheme(Brightness.dark),
     colorScheme: const ColorScheme(
       brightness: Brightness.dark,
-      primary: AppColors.spotifyGreen,
-      onPrimary: Colors.black,
-      secondary: Color(0xFFB3B3B3),
-      onSecondary: Color(0xFF121212),
+      primary: AppColors.white,
+      onPrimary: AppColors.black,
+      secondary: AppColors.gray300,
+      onSecondary: AppColors.black,
       error: AppColors.error,
-      onError: Colors.white,
-      surface: Color(0xFF1A1A1A),
-      onSurface: Color(0xFFF3F3F3),
+      onError: AppColors.white,
+      surface: AppColors.gray900,
+      onSurface: AppColors.white,
     ),
-    scaffoldBackgroundColor: const Color(0xFF121212),
+    scaffoldBackgroundColor: AppColors.black,
     appBarTheme: const AppBarTheme(
-      backgroundColor: Color(0xFF121212),
-      foregroundColor: Colors.white,
+      backgroundColor: AppColors.black,
+      foregroundColor: AppColors.white,
       elevation: 0,
       centerTitle: true,
     ),
     cardTheme: const CardThemeData(
-      color: Color(0xFF1D1D1D),
+      color: AppColors.gray900,
       surfaceTintColor: Colors.transparent,
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
@@ -141,14 +175,14 @@ class AppTheme {
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.spotifyGreen,
+        backgroundColor: AppColors.white,
         foregroundColor: Colors.black,
         minimumSize: const Size(double.infinity, 52),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     ),
     floatingActionButtonTheme: const FloatingActionButtonThemeData(
-      backgroundColor: AppColors.spotifyGreen,
+      backgroundColor: AppColors.white,
       foregroundColor: Colors.black,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.all(Radius.circular(16)),
@@ -156,8 +190,8 @@ class AppTheme {
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        foregroundColor: const Color(0xFFEDEDED),
-        side: const BorderSide(color: Color(0xFF2F3B33)),
+        foregroundColor: AppColors.white,
+        side: const BorderSide(color: AppColors.gray700),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         minimumSize: const Size(double.infinity, 52),
       ),
@@ -165,63 +199,64 @@ class AppTheme {
     switchTheme: SwitchThemeData(
       thumbColor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
-          return Colors.black;
+          return AppColors.black;
         }
-        return const Color(0xFFE9E9E9);
+        return AppColors.gray200;
       }),
       trackColor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
-          return AppColors.spotifyGreen;
+          return AppColors.white;
         }
-        return const Color(0xFF353535);
+        return AppColors.gray700;
       }),
     ),
     navigationBarTheme: const NavigationBarThemeData(
-      indicatorColor: Color(0x3F1DB954),
+      indicatorColor: AppColors.gray700,
       labelTextStyle: WidgetStatePropertyAll(
         TextStyle(fontWeight: FontWeight.w600),
       ),
     ),
     chipTheme: const ChipThemeData(
-      backgroundColor: Color(0xFF2A2A2A),
-      selectedColor: AppColors.spotifyGreen,
-      labelStyle: TextStyle(color: Colors.white),
+      backgroundColor: AppColors.gray800,
+      selectedColor: AppColors.gray600,
+      labelStyle: TextStyle(color: AppColors.white),
       padding: EdgeInsets.symmetric(horizontal: 8),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: const Color(0xFF212121),
+      fillColor: AppColors.gray900,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFF3D3D3D)),
+        borderSide: const BorderSide(color: AppColors.gray700),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFF3D3D3D)),
+        borderSide: const BorderSide(color: AppColors.gray700),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.spotifyGreen, width: 2),
+        borderSide: const BorderSide(color: AppColors.white, width: 2),
       ),
     ),
   );
 
   static ThemeData get gray => ThemeData(
     useMaterial3: true,
+    textTheme: _textTheme(Brightness.light),
     colorScheme: const ColorScheme(
       brightness: Brightness.light,
-      primary: AppColors.spotifyGreenDark,
+      primary: AppColors.gray800,
       onPrimary: Colors.white,
-      secondary: Color(0xFF515151),
+      secondary: AppColors.gray600,
       onSecondary: Colors.white,
       error: AppColors.error,
       onError: Colors.white,
-      surface: Color(0xFFF0F0F0),
-      onSurface: Color(0xFF212121),
+      surface: AppColors.gray100,
+      onSurface: AppColors.gray900,
     ),
-    scaffoldBackgroundColor: const Color(0xFFE5E5E5),
+    scaffoldBackgroundColor: AppColors.gray200,
     appBarTheme: const AppBarTheme(
-      backgroundColor: Color(0xFF565656),
+      backgroundColor: AppColors.gray700,
       foregroundColor: Colors.white,
       elevation: 0,
       centerTitle: true,
@@ -232,19 +267,19 @@ class AppTheme {
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.spotifyGreenDark,
+        backgroundColor: AppColors.gray800,
         foregroundColor: Colors.white,
         minimumSize: const Size(double.infinity, 52),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     ),
     floatingActionButtonTheme: const FloatingActionButtonThemeData(
-      backgroundColor: AppColors.spotifyGreenDark,
+      backgroundColor: AppColors.gray800,
       foregroundColor: Colors.white,
     ),
     chipTheme: const ChipThemeData(
       backgroundColor: Color(0xFFE1E1E1),
-      selectedColor: AppColors.spotifyGreenDark,
+      selectedColor: AppColors.gray600,
       labelStyle: TextStyle(color: Color(0xFF212121)),
       padding: EdgeInsets.symmetric(horizontal: 8),
     ),
@@ -261,10 +296,7 @@ class AppTheme {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(
-          color: AppColors.spotifyGreenDark,
-          width: 2,
-        ),
+        borderSide: const BorderSide(color: AppColors.gray800, width: 2),
       ),
     ),
   );
