@@ -27,8 +27,10 @@ class DetectionResult {
   final int id;
   final String plantName;
   final String? diseaseName;
+  final String? diseaseCause;
   final String? diseaseDescription;
   final String? diseaseRemedy;
+  final String? diseasePrevention;
   final String? uploadedImageUrl;
   final String? gradcamImageUrl;
   final double confidence;
@@ -40,8 +42,10 @@ class DetectionResult {
     required this.id,
     required this.plantName,
     required this.diseaseName,
+    required this.diseaseCause,
     required this.diseaseDescription,
     required this.diseaseRemedy,
+    required this.diseasePrevention,
     required this.uploadedImageUrl,
     required this.gradcamImageUrl,
     required this.confidence,
@@ -56,8 +60,10 @@ class DetectionResult {
       id: json['id'] as int,
       plantName: json['plant_name'] as String? ?? '',
       diseaseName: diseaseDetail?['name'] as String?,
+      diseaseCause: diseaseDetail?['cause'] as String?,
       diseaseDescription: diseaseDetail?['description'] as String?,
       diseaseRemedy: diseaseDetail?['remedy'] as String?,
+      diseasePrevention: diseaseDetail?['prevention'] as String?,
       uploadedImageUrl: json['uploaded_image'] as String?,
       gradcamImageUrl: json['gradcam_image'] as String?,
       confidence: (json['confidence'] as num?)?.toDouble() ?? 0.0,
@@ -138,18 +144,16 @@ class DetectionHistoryEntry {
   factory DetectionHistoryEntry.fromDetection({
     required DetectionResult result,
     required String? message,
-    required String? diseaseCause,
-    required String? diseasePrevention,
     Uint8List? imageBytes,
     Uint8List? gradcamBytes,
   }) {
     return DetectionHistoryEntry(
       plantName: result.plantName,
       diseaseName: result.diseaseName,
-      diseaseCause: diseaseCause,
+      diseaseCause: result.diseaseCause,
       diseaseDescription: result.diseaseDescription,
       diseaseRemedy: result.diseaseRemedy,
-      diseasePrevention: diseasePrevention,
+      diseasePrevention: result.diseasePrevention,
       message: message,
       imageUrl: result.uploadedImageUrl,
       gradcamUrl: result.gradcamImageUrl,

@@ -30,21 +30,24 @@ class AppTheme {
     final base = brightness == Brightness.dark
         ? ThemeData.dark().textTheme
         : ThemeData.light().textTheme;
-    return GoogleFonts.manropeTextTheme(base).copyWith(
-      titleLarge: GoogleFonts.manrope(
+    return GoogleFonts.plusJakartaSansTextTheme(base).copyWith(
+      titleLarge: GoogleFonts.plusJakartaSans(
         fontWeight: FontWeight.w700,
         letterSpacing: -0.2,
       ),
-      titleMedium: GoogleFonts.manrope(
+      titleMedium: GoogleFonts.plusJakartaSans(
         fontWeight: FontWeight.w700,
         letterSpacing: -0.1,
       ),
-      bodyLarge: GoogleFonts.manrope(fontWeight: FontWeight.w500, height: 1.4),
-      bodyMedium: GoogleFonts.manrope(
+      bodyLarge: GoogleFonts.plusJakartaSans(
+        fontWeight: FontWeight.w500,
+        height: 1.4,
+      ),
+      bodyMedium: GoogleFonts.plusJakartaSans(
         fontWeight: FontWeight.w500,
         height: 1.35,
       ),
-      labelLarge: GoogleFonts.manrope(fontWeight: FontWeight.w700),
+      labelLarge: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
     );
   }
 
@@ -64,8 +67,8 @@ class AppTheme {
     ),
     scaffoldBackgroundColor: AppColors.gray50,
     appBarTheme: const AppBarTheme(
-      backgroundColor: AppColors.white,
-      foregroundColor: AppColors.black,
+      backgroundColor: AppColors.black,
+      foregroundColor: AppColors.white,
       elevation: 0,
       centerTitle: true,
     ),
@@ -256,7 +259,7 @@ class AppTheme {
     ),
     scaffoldBackgroundColor: AppColors.gray200,
     appBarTheme: const AppBarTheme(
-      backgroundColor: AppColors.gray700,
+      backgroundColor: AppColors.black,
       foregroundColor: Colors.white,
       elevation: 0,
       centerTitle: true,

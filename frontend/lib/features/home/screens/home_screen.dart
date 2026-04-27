@@ -1,14 +1,20 @@
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../data/dummy_catalog.dart';
 import '../models/detection_record.dart';
 import '../services/detection_history_store.dart';
+
+enum _HistorySearchScope { all, plant, disease }
+
+enum _HistorySortMode { newest, lowestConfidence }
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,12 +27,23 @@ class _HomeScreenState extends State<HomeScreen> {
   final DetectionHistoryStore _historyStore = DetectionHistoryStore();
   final ImagePicker _picker = ImagePicker();
   final Random _random = Random();
+  final TextEditingController _historySearchController =
+      TextEditingController();
 
   int _currentIndex = 0;
   bool _loadingHistory = true;
   bool _detecting = false;
-  String? _actionMessage;
   List<DetectionHistoryEntry> _history = [];
+  final Set<String> _expandedHistoryCards = <String>{};
+  _HistorySearchScope _historySearchScope = _HistorySearchScope.all;
+  _HistorySortMode _historySortMode = _HistorySortMode.newest;
+  String? _scanFeedbackMessage;
+  String? _scanFeedbackActionLabel;
+  VoidCallback? _scanFeedbackAction;
+  String? _historyErrorMessage;
+  String? _historyErrorActionLabel;
+  VoidCallback? _historyErrorAction;
+  DetectionHistoryEntry? _pendingHistoryEntry;
   XFile? _selectedImage;
   Uint8List? _selectedImageBytes;
   DetectionApiResponse? _latestResult;
@@ -37,47 +54,191 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadHistory();
   }
 
+  @override
+  void dispose() {
+    _historySearchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadHistory() async {
     setState(() {
       _loadingHistory = true;
+      _historyErrorMessage = null;
+      _historyErrorActionLabel = null;
+      _historyErrorAction = null;
     });
 
-    final entries = await _historyStore.loadEntries();
-    if (mounted) {
+    try {
+      final entries = await _historyStore.loadEntries();
+      if (!mounted) {
+        return;
+      }
+
       setState(() {
         _history = entries;
         _loadingHistory = false;
+        _expandedHistoryCards.removeWhere(
+          (key) => !entries.any((entry) => _historyCardKey(entry) == key),
+        );
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _loadingHistory = false;
+        _historyErrorMessage =
+            'Could not load saved scans. Please check storage access and try again.';
+        _historyErrorActionLabel = 'Retry';
+        _historyErrorAction = _loadHistory;
       });
     }
   }
 
-  Future<void> _pickImage() async {
-    final image = await _picker.pickImage(source: ImageSource.gallery);
-    if (image == null) {
-      return;
-    }
-
-    final bytes = await image.readAsBytes();
+  void _setScanFeedback(
+    String message, {
+    String? actionLabel,
+    VoidCallback? action,
+  }) {
     if (!mounted) {
       return;
     }
 
     setState(() {
-      _selectedImage = image;
-      _selectedImageBytes = bytes;
-      _actionMessage = null;
+      _scanFeedbackMessage = message;
+      _scanFeedbackActionLabel = actionLabel;
+      _scanFeedbackAction = action;
     });
   }
 
-  Future<void> _runDetection() async {
-    if (_selectedImage == null || _selectedImageBytes == null) {
-      _showSnackBar('Pick an image to analyze.');
+  void _clearScanFeedback() {
+    if (!mounted) {
       return;
     }
 
     setState(() {
+      _scanFeedbackMessage = null;
+      _scanFeedbackActionLabel = null;
+      _scanFeedbackAction = null;
+    });
+  }
+
+  Future<bool> _ensureMediaPermission(ImageSource source) async {
+    if (kIsWeb) {
+      return true;
+    }
+
+    if (source == ImageSource.camera) {
+      return _requestPermission(
+        Permission.camera,
+        deniedMessage:
+            'Camera access is off. Allow it to take a fresh leaf photo.',
+        permanentlyDeniedMessage:
+            'Camera access is blocked. Open settings to enable it.',
+        retryAction: () => _pickImage(ImageSource.camera),
+      );
+    }
+
+    final permission =
+        defaultTargetPlatform == TargetPlatform.iOS ||
+            defaultTargetPlatform == TargetPlatform.macOS
+        ? Permission.photos
+        : Permission.storage;
+
+    return _requestPermission(
+      permission,
+      deniedMessage:
+          'Photo access is off. Allow it to pick an image from your gallery.',
+      permanentlyDeniedMessage:
+          'Photo access is blocked. Open settings to enable it.',
+      retryAction: () => _pickImage(ImageSource.gallery),
+    );
+  }
+
+  Future<bool> _requestPermission(
+    Permission permission, {
+    required String deniedMessage,
+    required String permanentlyDeniedMessage,
+    required VoidCallback retryAction,
+  }) async {
+    final status = await permission.request();
+    if (status.isGranted || status.isLimited) {
+      return true;
+    }
+
+    if (status.isPermanentlyDenied) {
+      _setScanFeedback(
+        permanentlyDeniedMessage,
+        actionLabel: 'Open settings',
+        action: openAppSettings,
+      );
+    } else {
+      _setScanFeedback(
+        deniedMessage,
+        actionLabel: 'Try again',
+        action: retryAction,
+      );
+    }
+
+    return false;
+  }
+
+  Future<bool> _pickImage(ImageSource source) async {
+    _clearScanFeedback();
+
+    if (!await _ensureMediaPermission(source)) {
+      return false;
+    }
+
+    try {
+      final image = await _picker.pickImage(source: source);
+      if (image == null) {
+        return false;
+      }
+
+      final bytes = await image.readAsBytes();
+      if (!mounted) {
+        return false;
+      }
+
+      setState(() {
+        _selectedImage = image;
+        _selectedImageBytes = bytes;
+        _latestResult = null;
+        _pendingHistoryEntry = null;
+      });
+
+      return true;
+    } catch (_) {
+      _setScanFeedback(
+        'Could not open the photo picker. Please try again.',
+        actionLabel: 'Retry',
+        action: () => _pickImage(source),
+      );
+      return false;
+    }
+  }
+
+  Future<void> _retakePhoto() async {
+    await _pickImage(ImageSource.camera);
+  }
+
+  Future<void> _runDetection() async {
+    if (_selectedImage == null || _selectedImageBytes == null) {
+      _setScanFeedback(
+        'Pick an image to analyze.',
+        actionLabel: 'Choose photo',
+        action: () => _pickImage(ImageSource.gallery),
+      );
+      return;
+    }
+
+    _clearScanFeedback();
+
+    setState(() {
       _detecting = true;
-      _actionMessage = null;
+      _latestResult = null;
     });
 
     try {
@@ -88,17 +249,20 @@ class _HomeScreenState extends State<HomeScreen> {
       final confidence = double.parse(
         (_random.nextDouble() * 0.59 + 0.40).toStringAsFixed(2),
       );
-      final status = confidence < 0.60 ? 'low_confidence' : 'success';
-      final message = status == 'success'
-          ? 'Demo detection generated locally on this device.'
-          : 'Confidence is low. Try scanning another leaf in better lighting.';
+      final isLowConfidence = confidence < 0.60;
+      final status = isLowConfidence ? 'low_confidence' : 'success';
+      final message = isLowConfidence
+          ? 'Confidence is low. Try scanning another leaf in better lighting.'
+          : 'Demo detection generated locally on this device.';
 
       final result = DetectionResult(
         id: DateTime.now().millisecondsSinceEpoch,
         plantName: plant.name,
         diseaseName: disease.name,
+        diseaseCause: disease.cause,
         diseaseDescription: disease.symptoms,
         diseaseRemedy: disease.remedy,
+        diseasePrevention: disease.prevention,
         uploadedImageUrl: _selectedImage!.name,
         gradcamImageUrl: null,
         confidence: confidence,
@@ -119,26 +283,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
       setState(() {
         _latestResult = response;
-        _actionMessage = message;
       });
 
       final historyEntry = DetectionHistoryEntry.fromDetection(
         result: result,
         message: message,
-        diseaseCause: disease.cause,
-        diseasePrevention: disease.prevention,
         imageBytes: _selectedImageBytes,
         gradcamBytes: null,
       );
-      await _historyStore.saveEntry(historyEntry);
-
-      if (mounted) {
-        setState(() {
-          _history = [historyEntry, ..._history];
-        });
-      }
+      await _saveHistoryEntry(historyEntry);
     } catch (_) {
-      _showSnackBar('Detection failed. Please try again.');
+      _setScanFeedback(
+        'Detection failed. Please try again.',
+        actionLabel: 'Retry detection',
+        action: _runDetection,
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -148,19 +307,56 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _clearHistory() async {
-    await _historyStore.clear();
-    if (mounted) {
+  Future<void> _saveHistoryEntry(DetectionHistoryEntry entry) async {
+    try {
+      await _historyStore.saveEntry(entry);
+      if (!mounted) {
+        return;
+      }
+
       setState(() {
-        _history = [];
+        _pendingHistoryEntry = null;
+        _history = [entry, ..._history];
       });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _pendingHistoryEntry = entry;
+      });
+
+      _setScanFeedback(
+        'The result was generated, but saving it to history failed.',
+        actionLabel: 'Retry save',
+        action: _retryPendingHistoryEntry,
+      );
     }
   }
 
-  void _showSnackBar(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+  Future<void> _retryPendingHistoryEntry() async {
+    final entry = _pendingHistoryEntry;
+    if (entry == null) {
+      return;
+    }
+
+    await _saveHistoryEntry(entry);
+  }
+
+  Future<void> _clearHistory() async {
+    await _historyStore.clear();
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _history = [];
+      _expandedHistoryCards.clear();
+      _historySearchController.clear();
+      _historySearchScope = _HistorySearchScope.all;
+      _historySortMode = _HistorySortMode.newest;
+    });
   }
 
   @override
@@ -236,9 +432,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildScanTab() {
     return RefreshIndicator(
-      onRefresh: () async {
-        await _loadHistory();
-      },
+      onRefresh: _loadHistory,
       child: LayoutBuilder(
         builder: (context, constraints) => Center(
           child: ConstrainedBox(
@@ -246,59 +440,34 @@ class _HomeScreenState extends State<HomeScreen> {
             child: ListView(
               padding: _responsivePadding(constraints).copyWith(bottom: 120),
               children: [
-                _buildHeroCard(),
-                const SizedBox(height: 16),
                 _buildImageCard(),
-                const SizedBox(height: 16),
-                if (_latestResult != null) _buildResultCard(_latestResult!),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeroCard() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.primary, AppColors.primaryLight],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: const Row(
-        children: [
-          CircleAvatar(
-            radius: 28,
-            backgroundColor: Colors.white24,
-            child: Icon(Icons.local_florist, color: Colors.white, size: 30),
-          ),
-          SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Simple scanning, local history',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
+                if (_detecting) ...[
+                  const SizedBox(height: 16),
+                  _buildLoadingNotice(
+                    title: 'Analyzing photo',
+                    message:
+                        'Please wait while the demo model generates a prediction.',
                   ),
-                ),
-                SizedBox(height: 6),
-                Text(
-                  'Upload a photo and let the app choose a local demo result automatically.',
-                  style: TextStyle(color: Colors.white70),
-                ),
+                ],
+                if (_scanFeedbackMessage != null) ...[
+                  const SizedBox(height: 16),
+                  _buildNoticeCard(
+                    icon: Icons.error_outline,
+                    title: 'Something needs attention',
+                    message: _scanFeedbackMessage!,
+                    iconColor: Colors.orange.shade700,
+                    actionLabel: _scanFeedbackActionLabel,
+                    onAction: _scanFeedbackAction,
+                  ),
+                ],
+                if (_latestResult != null) ...[
+                  const SizedBox(height: 16),
+                  _buildResultCard(_latestResult!),
+                ],
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -312,12 +481,12 @@ class _HomeScreenState extends State<HomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Upload image',
+              'Add photo',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 12),
             GestureDetector(
-              onTap: _pickImage,
+              onTap: () => _pickImage(ImageSource.gallery),
               child: Container(
                 height: 220,
                 width: double.infinity,
@@ -331,15 +500,46 @@ class _HomeScreenState extends State<HomeScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(Icons.add_photo_alternate_outlined, size: 44),
-                          SizedBox(height: 12),
-                          Text('Tap to choose a photo'),
+                          SizedBox(height: 8),
+                          Text(
+                            'Tap to choose a photo',
+                            style: TextStyle(fontSize: 14),
+                          ),
                         ],
                       )
-                    : ClipRRect(
-                        borderRadius: BorderRadius.circular(20),
-                        child: Image.memory(
-                          _selectedImageBytes!,
-                          fit: BoxFit.cover,
+                    : SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.all(8),
+                        child: Row(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: Container(
+                                width: 320,
+                                height: 204,
+                                color: Colors.white,
+                                child: Image.memory(
+                                  _selectedImageBytes!,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: Container(
+                                width: 320,
+                                height: 204,
+                                color: Colors.green.shade100,
+                                child: const Center(
+                                  child: Text(
+                                    'Grad-CAM preview (coming)',
+                                    style: TextStyle(fontSize: 14),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
               ),
@@ -349,15 +549,35 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: _pickImage,
+                    onPressed: () => _pickImage(ImageSource.gallery),
                     icon: const Icon(Icons.photo_library_outlined),
-                    label: const Text('Pick image'),
+                    label: const Text(
+                      'Pick photo',
+                      style: TextStyle(fontSize: 14),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _pickImage(ImageSource.camera),
+                    icon: const Icon(Icons.camera_alt_outlined),
+                    label: const Text(
+                      'Click photo',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: _detecting ? null : _runDetection,
+                    onPressed: (_detecting || _selectedImageBytes == null)
+                        ? null
+                        : _runDetection,
                     icon: _detecting
                         ? const SizedBox(
                             width: 18,
@@ -365,7 +585,10 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.search),
-                    label: Text(_detecting ? 'Scanning...' : 'Detect'),
+                    label: Text(
+                      _detecting ? 'Scanning...' : 'Detect',
+                      style: const TextStyle(fontSize: 16),
+                    ),
                   ),
                 ),
               ],
@@ -382,6 +605,10 @@ class _HomeScreenState extends State<HomeScreen> {
       return const SizedBox.shrink();
     }
 
+    final confidenceColor = result.confidence < 0.60
+        ? Colors.orange.shade700
+        : Colors.green.shade700;
+
     return Card(
       elevation: 0,
       child: Padding(
@@ -391,17 +618,16 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Row(
               children: [
-                Text(
-                  response.status == 'success' ? 'Result' : 'Low confidence',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
+                const Expanded(
+                  child: Text(
+                    'Top prediction',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                   ),
                 ),
-                const Spacer(),
                 Chip(
                   label: Text(result.confidencePct),
-                  backgroundColor: Colors.green.shade50,
+                  backgroundColor: confidenceColor.withOpacity(0.12),
+                  labelStyle: TextStyle(color: confidenceColor),
                 ),
               ],
             ),
@@ -411,22 +637,67 @@ class _HomeScreenState extends State<HomeScreen> {
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 4),
-            Text('Plant: ${result.plantName}'),
-            const SizedBox(height: 12),
-            if (result.diseaseDescription != null)
-              Text(result.diseaseDescription!),
-            if (result.diseaseRemedy != null) ...[
-              const SizedBox(height: 10),
-              Text(
-                'Remedy: ${result.diseaseRemedy!}',
-                style: const TextStyle(fontWeight: FontWeight.w600),
+            Text(
+              'Plant: ${result.plantName}',
+              style: const TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            _buildDetailGroup(
+              title: 'Prediction details',
+              children: [
+                _DetailLine(
+                  label: 'Confidence',
+                  value: result.confidencePct,
+                  valueColor: confidenceColor,
+                ),
+                const SizedBox(height: 10),
+                _DetailLine(
+                  label: 'Cause',
+                  value: result.diseaseCause ?? 'Not available yet',
+                ),
+                const SizedBox(height: 10),
+                _DetailLine(
+                  label: 'Remedy',
+                  value: result.diseaseRemedy ?? 'Not available yet',
+                ),
+                const SizedBox(height: 10),
+                _DetailLine(
+                  label: 'Prevention',
+                  value: result.diseasePrevention ?? 'Not available yet',
+                ),
+              ],
+            ),
+            if (result.diseaseDescription != null) ...[
+              const SizedBox(height: 12),
+              _buildDetailGroup(
+                title: 'Description',
+                children: [Text(result.diseaseDescription!)],
               ),
             ],
-            const SizedBox(height: 10),
-            Text(
-              response.message ?? '',
-              style: const TextStyle(color: AppColors.textSecondary),
-            ),
+            if (response.message != null && response.message!.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _buildNoticeCard(
+                icon: result.confidence < 0.60
+                    ? Icons.warning_amber_outlined
+                    : Icons.info_outline,
+                title: result.confidence < 0.60
+                    ? 'Low-confidence note'
+                    : 'Result note',
+                message: response.message!,
+                iconColor: confidenceColor,
+              ),
+            ],
+            if (result.confidence < 0.60) ...[
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _retakePhoto,
+                  icon: const Icon(Icons.camera_alt_outlined),
+                  label: const Text('Retake photo'),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -434,6 +705,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildHistoryTab() {
+    final visibleHistory = _filteredHistoryEntries();
+
     return RefreshIndicator(
       onRefresh: _loadHistory,
       child: LayoutBuilder(
@@ -461,8 +734,22 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
+                _buildHistoryControls(),
+                const SizedBox(height: 12),
                 if (_loadingHistory)
-                  const Center(child: CircularProgressIndicator())
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (_historyErrorMessage != null)
+                  _buildNoticeCard(
+                    icon: Icons.cloud_off_outlined,
+                    title: 'History unavailable',
+                    message: _historyErrorMessage!,
+                    iconColor: Colors.red.shade700,
+                    actionLabel: _historyErrorActionLabel,
+                    onAction: _historyErrorAction,
+                  )
                 else if (_history.isEmpty)
                   Card(
                     elevation: 0,
@@ -489,8 +776,33 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   )
-                else
-                  ..._history.map((entry) => _buildHistoryCard(entry)),
+                else if (visibleHistory.isEmpty)
+                  _buildNoticeCard(
+                    icon: Icons.manage_search_outlined,
+                    title: 'No matches found',
+                    message:
+                        'Try a different search term, filter, or sorting option.',
+                    iconColor: Colors.green.shade700,
+                    actionLabel: 'Clear search',
+                    onAction: () {
+                      setState(() {
+                        _historySearchController.clear();
+                        _historySearchScope = _HistorySearchScope.all;
+                        _historySortMode = _HistorySortMode.newest;
+                      });
+                    },
+                  )
+                else ...[
+                  Text(
+                    '${visibleHistory.length} result${visibleHistory.length == 1 ? '' : 's'}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ...visibleHistory.map(_buildHistoryCard),
+                ],
               ],
             ),
           ),
@@ -499,78 +811,378 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildHistoryControls() {
+    return Card(
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Search and sort',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _historySearchController,
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search),
+                hintText: 'Search plant, disease, cause, remedy...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<_HistorySearchScope>(
+              value: _historySearchScope,
+              decoration: const InputDecoration(
+                labelText: 'Filter by',
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: _HistorySearchScope.all,
+                  child: Text('All fields'),
+                ),
+                DropdownMenuItem(
+                  value: _HistorySearchScope.plant,
+                  child: Text('Plant only'),
+                ),
+                DropdownMenuItem(
+                  value: _HistorySearchScope.disease,
+                  child: Text('Disease details'),
+                ),
+              ],
+              onChanged: (value) {
+                if (value == null) {
+                  return;
+                }
+
+                setState(() {
+                  _historySearchScope = value;
+                });
+              },
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<_HistorySortMode>(
+              value: _historySortMode,
+              decoration: const InputDecoration(
+                labelText: 'Sort by',
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: _HistorySortMode.newest,
+                  child: Text('Newest first'),
+                ),
+                DropdownMenuItem(
+                  value: _HistorySortMode.lowestConfidence,
+                  child: Text('Lowest confidence first'),
+                ),
+              ],
+              onChanged: (value) {
+                if (value == null) {
+                  return;
+                }
+
+                setState(() {
+                  _historySortMode = value;
+                });
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<DetectionHistoryEntry> _filteredHistoryEntries() {
+    final query = _historySearchController.text.trim().toLowerCase();
+    final filtered = _history.where((entry) {
+      if (query.isEmpty) {
+        return true;
+      }
+
+      switch (_historySearchScope) {
+        case _HistorySearchScope.all:
+          return _entryMatchesAnyField(entry, query);
+        case _HistorySearchScope.plant:
+          return entry.plantName.toLowerCase().contains(query);
+        case _HistorySearchScope.disease:
+          return _entryMatchesDiseaseFields(entry, query);
+      }
+    }).toList();
+
+    filtered.sort((left, right) {
+      switch (_historySortMode) {
+        case _HistorySortMode.newest:
+          return right.createdAt.compareTo(left.createdAt);
+        case _HistorySortMode.lowestConfidence:
+          final comparison = left.confidence.compareTo(right.confidence);
+          if (comparison != 0) {
+            return comparison;
+          }
+          return right.createdAt.compareTo(left.createdAt);
+      }
+    });
+
+    return filtered;
+  }
+
+  bool _entryMatchesAnyField(DetectionHistoryEntry entry, String query) {
+    return entry.plantName.toLowerCase().contains(query) ||
+        (entry.diseaseName?.toLowerCase().contains(query) ?? false) ||
+        (entry.diseaseCause?.toLowerCase().contains(query) ?? false) ||
+        (entry.diseaseDescription?.toLowerCase().contains(query) ?? false) ||
+        (entry.diseaseRemedy?.toLowerCase().contains(query) ?? false) ||
+        (entry.diseasePrevention?.toLowerCase().contains(query) ?? false);
+  }
+
+  bool _entryMatchesDiseaseFields(DetectionHistoryEntry entry, String query) {
+    return (entry.diseaseName?.toLowerCase().contains(query) ?? false) ||
+        (entry.diseaseCause?.toLowerCase().contains(query) ?? false) ||
+        (entry.diseaseDescription?.toLowerCase().contains(query) ?? false) ||
+        (entry.diseaseRemedy?.toLowerCase().contains(query) ?? false) ||
+        (entry.diseasePrevention?.toLowerCase().contains(query) ?? false);
+  }
+
+  String _historyCardKey(DetectionHistoryEntry entry) {
+    return entry.createdAt.toIso8601String();
+  }
+
   Widget _buildHistoryCard(DetectionHistoryEntry entry) {
-    final isLowConfidence = entry.status == 'low_confidence';
+    final historyKey = _historyCardKey(entry);
+    final isLowConfidence = entry.confidence < 0.60;
+    final isExpanded = _expandedHistoryCards.contains(historyKey);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Card(
         elevation: 0,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  width: 72,
-                  height: 72,
-                  color: Colors.green.shade50,
-                  child: entry.imageBytes == null
-                      ? const Icon(Icons.image_outlined)
-                      : Image.memory(entry.imageBytes!, fit: BoxFit.cover),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+        child: ExpansionTile(
+          key: PageStorageKey<String>('history-$historyKey'),
+          initiallyExpanded: isExpanded,
+          onExpansionChanged: (expanded) {
+            setState(() {
+              if (expanded) {
+                _expandedHistoryCards.add(historyKey);
+              } else {
+                _expandedHistoryCards.remove(historyKey);
+              }
+            });
+          },
+          tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+          leading: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: 56,
+              height: 56,
+              color: Colors.green.shade50,
+              child: entry.imageBytes == null
+                  ? const Icon(Icons.image_outlined)
+                  : Image.memory(entry.imageBytes!, fit: BoxFit.cover),
+            ),
+          ),
+          title: Text(
+            entry.diseaseName ?? 'No disease matched',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(entry.plantName),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            entry.diseaseName ?? 'No disease matched',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        Chip(
-                          label: Text(entry.status),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      ],
+                    Chip(
+                      label: Text(
+                        '${(entry.confidence * 100).toStringAsFixed(1)}%',
+                      ),
+                      visualDensity: VisualDensity.compact,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                    const SizedBox(height: 4),
-                    Text(entry.plantName),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Confidence: ${(entry.confidence * 100).toStringAsFixed(1)}%',
-                    ),
-                    const SizedBox(height: 4),
                     Text(
                       DateFormat(
                         'dd MMM yyyy, hh:mm a',
                       ).format(entry.createdAt),
-                      style: const TextStyle(color: AppColors.textSecondary),
-                    ),
-                    if (isLowConfidence && entry.message != null) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        entry.message!,
-                        style: TextStyle(color: Colors.orange.shade800),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
                       ),
-                    ],
+                    ),
                   ],
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
+          children: [
+            const Divider(height: 1),
+            const SizedBox(height: 12),
+            _buildDetailGroup(
+              title: 'Details',
+              children: [
+                _DetailLine(
+                  label: 'Cause',
+                  value: entry.diseaseCause ?? 'Not available yet',
+                ),
+                const SizedBox(height: 10),
+                _DetailLine(
+                  label: 'Description',
+                  value: entry.diseaseDescription ?? 'Not available yet',
+                ),
+                const SizedBox(height: 10),
+                _DetailLine(
+                  label: 'Remedy',
+                  value: entry.diseaseRemedy ?? 'Not available yet',
+                ),
+                const SizedBox(height: 10),
+                _DetailLine(
+                  label: 'Prevention',
+                  value: entry.diseasePrevention ?? 'Not available yet',
+                ),
+                if (isLowConfidence && entry.message != null) ...[
+                  const SizedBox(height: 10),
+                  _DetailLine(
+                    label: 'Note',
+                    value: entry.message!,
+                    valueColor: Colors.orange.shade800,
+                  ),
+                ],
+              ],
+            ),
+          ],
         ),
       ),
+    );
+  }
+
+  Widget _buildLoadingNotice({required String title, required String message}) {
+    return _buildNoticeCard(
+      icon: Icons.hourglass_top,
+      title: title,
+      message: message,
+      iconColor: Colors.green.shade700,
+      showProgress: true,
+    );
+  }
+
+  Widget _buildDetailGroup({
+    required String title,
+    required List<Widget> children,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoticeCard({
+    required IconData icon,
+    required String title,
+    required String message,
+    Color? iconColor,
+    String? actionLabel,
+    VoidCallback? onAction,
+    bool showProgress = false,
+  }) {
+    return Card(
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: iconColor ?? Colors.green.shade700),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(message, style: const TextStyle(fontSize: 14)),
+                  if (actionLabel != null && onAction != null) ...[
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton(
+                        onPressed: onAction,
+                        child: Text(actionLabel),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (showProgress)
+              const Padding(
+                padding: EdgeInsets.only(top: 4),
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DetailLine extends StatelessWidget {
+  const _DetailLine({
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
+
+  final String label;
+  final String value;
+  final Color? valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: TextStyle(color: valueColor ?? AppColors.textSecondary),
+        ),
+      ],
     );
   }
 }
