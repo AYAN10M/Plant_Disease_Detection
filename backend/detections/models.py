@@ -9,6 +9,7 @@ class Detection(models.Model):
         ('processing',     'Processing'),
         ('success',        'Success'),
         ('low_confidence', 'Low Confidence'),
+        ('not_a_plant',    'Not a Plant'),
         ('failed',         'Failed'),
     ]
 

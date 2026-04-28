@@ -10,6 +10,16 @@ import '../../../core/services/api_client.dart';
 import '../models/detection_record.dart';
 import '../services/detection_history_store.dart';
 
+// Helper: returns a theme-aware subtle fill color
+Color _surfaceVariant(BuildContext context) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  return isDark ? AppColors.gray800 : AppColors.gray100;
+}
+Color _borderColor(BuildContext context) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  return isDark ? AppColors.gray700 : AppColors.gray200;
+}
+
 enum _HistorySearchScope { all, plant, disease }
 
 enum _HistorySortMode { newest, lowestConfidence }
@@ -31,6 +41,8 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   bool _loadingHistory = true;
   bool _detecting = false;
+  bool _serverReady = false;   // true once health check passes
+  bool _filterExpanded = false;
   List<DetectionHistoryEntry> _history = [];
   final Set<String> _expandedHistoryCards = <String>{};
   _HistorySearchScope _historySearchScope = _HistorySearchScope.all;
@@ -51,6 +63,12 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadHistory();
+    _pingServer();
+  }
+
+  Future<void> _pingServer() async {
+    final ready = await _apiClient.checkServerHealth();
+    if (mounted) setState(() => _serverReady = ready);
   }
 
   @override
@@ -238,13 +256,83 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _retakePhoto() async {
-    await _pickImage(ImageSource.camera);
+    // Show a bottom sheet so the user can choose camera or gallery
+    if (!mounted) return;
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Retake photo',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('Take a new photo'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choose from gallery'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+    await _pickImage(source);
   }
 
   Future<void> _runDetection() async {
     if (_selectedImage == null || _selectedImageBytes == null) {
       _setScanFeedback(
         'Pick an image to analyze.',
+        actionLabel: 'Choose photo',
+        action: () => _pickImage(ImageSource.gallery),
+      );
+      return;
+    }
+
+    // Quick server health probe before committing to a long upload
+    if (!_serverReady) {
+      setState(() => _detecting = true);
+      _serverReady = await _apiClient.checkServerHealth();
+      if (!mounted) return;
+      if (!_serverReady) {
+        setState(() => _detecting = false);
+        _setScanFeedback(
+          'Cannot reach the backend server.\n'
+          'Run: cd backend → python manage.py runserver',
+          actionLabel: 'Retry',
+          action: _runDetection,
+        );
+        return;
+      }
+      setState(() => _detecting = false);
+    }
+
+    // Guard: reject images over 10 MB to avoid OOM and very slow uploads.
+    const int maxBytes = 10 * 1024 * 1024;
+    if (_selectedImageBytes!.length > maxBytes) {
+      _setScanFeedback(
+        'The selected image is too large (max 10 MB). Please choose a smaller photo.',
         actionLabel: 'Choose photo',
         action: () => _pickImage(ImageSource.gallery),
       );
@@ -263,28 +351,28 @@ class _HomeScreenState extends State<HomeScreen> {
         imageBytes: _selectedImageBytes!,
         filename: _selectedImage!.name,
       );
-      final result = response.data;
 
-      if (result == null) {
-        throw MidoriApiException(
-          'The detection API returned no prediction data.',
+      if (!mounted) return;
+      setState(() => _latestResult = response);
+
+      // Not a plant — show feedback and return (finally will clear the spinner).
+      if (response.status == 'not_a_plant') {
+        _setScanFeedback(
+          response.message ?? '🌿 Please provide a clear photo of a plant leaf.',
+          actionLabel: 'Choose another photo',
+          action: () => _pickImage(ImageSource.gallery),
         );
-      }
-
-      if (!mounted) {
         return;
       }
 
-      setState(() {
-        _latestResult = response;
-      });
+      final result = response.data;
+      if (result == null) {
+        throw MidoriApiException('The detection API returned no prediction data.');
+      }
 
       final gradcamBytes = await _apiClient.fetchBytes(result.gradcamImageUrl);
-
       if (mounted && gradcamBytes != null) {
-        setState(() {
-          _gradcamBytes = gradcamBytes;
-        });
+        setState(() => _gradcamBytes = gradcamBytes);
       }
 
       final historyEntry = DetectionHistoryEntry.fromDetection(
@@ -295,11 +383,20 @@ class _HomeScreenState extends State<HomeScreen> {
       );
       await _saveHistoryEntry(historyEntry);
     } on MidoriApiException catch (error) {
-      _setScanFeedback(
-        error.message,
-        actionLabel: 'Retry detection',
-        action: _runDetection,
-      );
+      // Handle not-a-plant response surfaced via status field
+      if (_latestResult?.status == 'not_a_plant') {
+        _setScanFeedback(
+          '🌿 Please provide a clear photo of a plant leaf.',
+          actionLabel: 'Choose another photo',
+          action: () => _pickImage(ImageSource.gallery),
+        );
+      } else {
+        _setScanFeedback(
+          error.message,
+          actionLabel: 'Retry detection',
+          action: _runDetection,
+        );
+      }
     } catch (_) {
       _setScanFeedback(
         'Detection failed. Please check the backend connection and try again.',
@@ -378,7 +475,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      extendBody: true,
       appBar: AppBar(
         title: const Text('🌿 Midori'),
         actions: [
@@ -400,27 +496,32 @@ class _HomeScreenState extends State<HomeScreen> {
         index: _currentIndex,
         children: [_buildScanTab(), _buildHistoryTab()],
       ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        child: SafeArea(top: false, child: _buildFloatingCuboidNavBar()),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: _onTabSelected,
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.document_scanner_outlined),
+            selectedIcon: Icon(Icons.document_scanner),
+            label: 'Scan',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.history_outlined),
+            selectedIcon: Icon(Icons.history),
+            label: 'History',
+          ),
+        ],
       ),
     );
   }
 
   Future<void> _onTabSelected(int index) async {
-    if (_currentIndex == index) {
-      return;
-    }
-
-    setState(() {
-      _currentIndex = index;
-    });
-
-    if (index == 1) {
-      await _loadHistory();
-    }
+    if (_currentIndex == index) return;
+    setState(() => _currentIndex = index);
+    if (index == 1) await _loadHistory();
   }
 
+  // ignore: unused_element
   Widget _buildFloatingCuboidNavBar() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final borderColor = isDark
@@ -483,7 +584,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 760),
             child: ListView(
-              padding: _responsivePadding(constraints).copyWith(bottom: 120),
+              padding: _responsivePadding(constraints).copyWith(bottom: 24),
               children: [
                 _buildImageCard(),
                 if (_detecting) ...[
@@ -491,7 +592,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   _buildLoadingNotice(
                     title: 'Analyzing photo',
                     message:
-                        'Please wait while the trained model analyzes the leaf photo.',
+                        'Running MobileNetV2 + Grad-CAM inference. '
+                        'First scan after server start may take 10–30 s '
+                        'while the model warms up.',
                   ),
                 ],
                 if (_scanFeedbackMessage != null) ...[
@@ -593,15 +696,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildPhotoPreviewArea() {
     final cs = Theme.of(context).colorScheme;
     final isDark = cs.brightness == Brightness.dark;
-    final emptyBg = isDark
-        ? const Color(0xFF1A2E1A)   // very dark green tint
-        : const Color(0xFFF0F7F0);  // soft light green
-    final emptyBorder = isDark
-        ? const Color(0xFF2D4A2D)
-        : const Color(0xFFB8DEB8);
-    final gradcamBg = isDark
-        ? const Color(0xFF1A2A1A)
-        : const Color(0xFFE8F5E9);
+    final emptyBg    = isDark ? AppColors.gray800 : AppColors.green50;
+    final emptyBorder = isDark ? AppColors.gray700 : AppColors.green100;
+    final gradcamBg  = isDark ? AppColors.gray900 : AppColors.green50;
 
     return Container(
       height: 220,
@@ -697,7 +794,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildResultCard(DetectionApiResponse response) {    final result = response.data;
+  Widget _buildResultCard(DetectionApiResponse response) {
+    final result = response.data;
     if (result == null) {
       return const SizedBox.shrink();
     }
@@ -879,7 +977,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: Icons.info_outline,
                 title: 'Result note',
                 message: response.message!,
-                iconColor: Colors.green.shade700,
+                iconColor: AppColors.green500,
               ),
             ],
           ],
@@ -969,7 +1067,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 760),
             child: ListView(
-              padding: _responsivePadding(constraints).copyWith(bottom: 120),
+              padding: _responsivePadding(constraints).copyWith(bottom: 24),
               children: [
                 Row(
                   children: [
@@ -1001,7 +1099,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     icon: Icons.cloud_off_outlined,
                     title: 'History unavailable',
                     message: _historyErrorMessage!,
-                    iconColor: Colors.red.shade700,
+                    iconColor: AppColors.error,
                     actionLabel: _historyErrorActionLabel,
                     onAction: _historyErrorAction,
                   )
@@ -1037,7 +1135,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     title: 'No matches found',
                     message:
                         'Try a different search term, filter, or sorting option.',
-                    iconColor: Colors.green.shade700,
+                    iconColor: AppColors.green500,
                     actionLabel: 'Clear search',
                     onAction: () {
                       setState(() {
@@ -1050,9 +1148,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 else ...[
                   Text(
                     '${visibleHistory.length} result${visibleHistory.length == 1 ? '' : 's'}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
-                      color: AppColors.textSecondary,
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -1067,88 +1165,168 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildHistoryControls() {
-    return Card(
-      elevation: 0,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    final cs = Theme.of(context).colorScheme;
+    final hasActiveFilter = _historySearchScope != _HistorySearchScope.all ||
+        _historySortMode != _HistorySortMode.newest;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Compact search row ─────────────────────────────────────────────
+        Row(
           children: [
-            const Text(
-              'Search and sort',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _historySearchController,
-              onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.search),
-                hintText: 'Search plant, disease, cause, remedy...',
-                border: OutlineInputBorder(),
+            Expanded(
+              child: TextField(
+                controller: _historySearchController,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  hintText: 'Search history…',
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  suffixIcon: _historySearchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, size: 18),
+                          onPressed: () {
+                            _historySearchController.clear();
+                            setState(() {});
+                          },
+                        )
+                      : null,
+                ),
               ),
             ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<_HistorySearchScope>(
-              initialValue: _historySearchScope,
-              decoration: const InputDecoration(
-                labelText: 'Filter by',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(
-                  value: _HistorySearchScope.all,
-                  child: Text('All fields'),
+            const SizedBox(width: 8),
+            // Filter toggle badge
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                IconButton.filledTonal(
+                  tooltip: 'Filter & Sort',
+                  style: IconButton.styleFrom(
+                    backgroundColor: _filterExpanded
+                        ? cs.primaryContainer
+                        : cs.surfaceContainerHighest,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(
+                      _filterExpanded ? Icons.tune : Icons.tune_outlined,
+                      key: ValueKey(_filterExpanded),
+                      size: 20,
+                    ),
+                  ),
+                  onPressed: () =>
+                      setState(() => _filterExpanded = !_filterExpanded),
                 ),
-                DropdownMenuItem(
-                  value: _HistorySearchScope.plant,
-                  child: Text('Plant only'),
-                ),
-                DropdownMenuItem(
-                  value: _HistorySearchScope.disease,
-                  child: Text('Disease details'),
-                ),
+                if (hasActiveFilter)
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: cs.primary,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
               ],
-              onChanged: (value) {
-                if (value == null) {
-                  return;
-                }
-
-                setState(() {
-                  _historySearchScope = value;
-                });
-              },
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<_HistorySortMode>(
-              initialValue: _historySortMode,
-              decoration: const InputDecoration(
-                labelText: 'Sort by',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(
-                  value: _HistorySortMode.newest,
-                  child: Text('Newest first'),
-                ),
-                DropdownMenuItem(
-                  value: _HistorySortMode.lowestConfidence,
-                  child: Text('Lowest confidence first'),
-                ),
-              ],
-              onChanged: (value) {
-                if (value == null) {
-                  return;
-                }
-
-                setState(() {
-                  _historySortMode = value;
-                });
-              },
             ),
           ],
         ),
-      ),
+
+        // ── Animated filter panel ──────────────────────────────────────────
+        AnimatedSize(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeInOut,
+          child: _filterExpanded
+              ? Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Row(
+                    children: [
+                      // Filter-by chip group
+                      Expanded(
+                        child: _buildSegmentRow<_HistorySearchScope>(
+                          label: 'Filter',
+                          options: const [
+                            (_HistorySearchScope.all, 'All'),
+                            (_HistorySearchScope.plant, 'Plant'),
+                            (_HistorySearchScope.disease, 'Disease'),
+                          ],
+                          selected: _historySearchScope,
+                          onSelected: (v) =>
+                              setState(() => _historySearchScope = v),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // Sort chip group
+                      Expanded(
+                        child: _buildSegmentRow<_HistorySortMode>(
+                          label: 'Sort',
+                          options: const [
+                            (_HistorySortMode.newest, 'Newest'),
+                            (_HistorySortMode.lowestConfidence, 'Lowest %'),
+                          ],
+                          selected: _historySortMode,
+                          onSelected: (v) =>
+                              setState(() => _historySortMode = v),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
+      ],
+    );
+  }
+
+  /// Horizontal chip row with label for a generic enum selector.
+  Widget _buildSegmentRow<T>({
+    required String label,
+    required List<(T, String)> options,
+    required T selected,
+    required ValueChanged<T> onSelected,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurface.withValues(alpha: 0.5),
+                letterSpacing: 0.5)),
+        const SizedBox(height: 4),
+        Wrap(
+          spacing: 4,
+          children: options.map((opt) {
+            final (value, text) = opt;
+            final isSelected = selected == value;
+            return ChoiceChip(
+              label: Text(text,
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: isSelected
+                          ? cs.onPrimary
+                          : cs.onSurface)),
+              selected: isSelected,
+              selectedColor: cs.primary,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              visualDensity: VisualDensity.compact,
+              onSelected: (_) => onSelected(value),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 
@@ -1206,6 +1384,22 @@ class _HomeScreenState extends State<HomeScreen> {
     return entry.createdAt.toIso8601String();
   }
 
+  Future<void> _deleteHistoryEntry(DetectionHistoryEntry entry) async {
+    try {
+      await _historyStore.deleteEntry(entry);
+      if (!mounted) return;
+      setState(() {
+        _history.removeWhere(
+          (e) => e.createdAt.toIso8601String() == entry.createdAt.toIso8601String(),
+        );
+        _expandedHistoryCards.remove(_historyCardKey(entry));
+      });
+    } catch (_) {
+      if (!mounted) return;
+      _setScanFeedback('Could not delete this entry. Please try again.');
+    }
+  }
+
   Widget _buildHistoryCard(DetectionHistoryEntry entry) {
     final historyKey = _historyCardKey(entry);
     final isLowConfidence = entry.confidence < 0.60;
@@ -1213,9 +1407,50 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: Card(
-        elevation: 0,
-        child: ExpansionTile(
+      child: Dismissible(
+        key: ValueKey(historyKey),
+        direction: DismissDirection.endToStart,
+        background: Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: 20),
+          decoration: BoxDecoration(
+            color: const Color(0xFFD32F2F),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.delete_outline, color: Colors.white, size: 28),
+              SizedBox(height: 4),
+              Text('Delete', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
+        confirmDismiss: (_) async {
+          return await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Delete entry?'),
+              content: Text(
+                'Remove "${entry.diseaseName ?? 'this entry'}" from history?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Delete', style: TextStyle(color: Color(0xFFD32F2F))),
+                ),
+              ],
+            ),
+          ) ?? false;
+        },
+        onDismissed: (_) => _deleteHistoryEntry(entry),
+        child: Card(
+          elevation: 0,
+          child: ExpansionTile(
           key: PageStorageKey<String>('history-$historyKey'),
           initiallyExpanded: isExpanded,
           onExpansionChanged: (expanded) {
@@ -1231,14 +1466,14 @@ class _HomeScreenState extends State<HomeScreen> {
           childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
           leading: ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: Container(
+            child: Builder(builder: (ctx) => Container(
               width: 56,
               height: 56,
-              color: Colors.green.shade50,
+              color: _surfaceVariant(ctx),
               child: entry.imageBytes == null
                   ? const Icon(Icons.image_outlined)
                   : Image.memory(entry.imageBytes!, fit: BoxFit.cover),
-            ),
+            )),
           ),
           title: Text(
             entry.diseaseName ?? 'No disease matched',
@@ -1268,9 +1503,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       DateFormat(
                         'dd MMM yyyy, hh:mm a',
                       ).format(entry.createdAt),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
-                        color: AppColors.textSecondary,
+                        //color: AppColors.textSecondary,
                       ),
                     ),
                   ],
@@ -1315,6 +1550,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
+        ),
       ),
     );
   }
@@ -1324,7 +1560,7 @@ class _HomeScreenState extends State<HomeScreen> {
       icon: Icons.hourglass_top,
       title: title,
       message: message,
-      iconColor: Colors.green.shade700,
+      iconColor: AppColors.green500,
       showProgress: true,
     );
   }
@@ -1337,9 +1573,9 @@ class _HomeScreenState extends State<HomeScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: _surfaceVariant(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: _borderColor(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1356,12 +1592,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildPreviewTile({required String title, required Widget child}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       height: 190,
       decoration: BoxDecoration(
-        color: Colors.green.shade50,
+        color: isDark ? AppColors.gray800 : AppColors.green50,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.green.shade100),
+        border: Border.all(color: isDark ? AppColors.gray700 : AppColors.green100),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(18),
@@ -1416,7 +1653,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: iconColor ?? Colors.green.shade700),
+            Icon(icon, color: iconColor ?? AppColors.green500),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -1478,10 +1715,12 @@ class _DetailLine extends StatelessWidget {
       children: [
         Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
         const SizedBox(height: 2),
-        Text(
+        Builder(builder: (ctx) => Text(
           value,
-          style: TextStyle(color: valueColor ?? AppColors.textSecondary),
-        ),
+          style: TextStyle(
+            color: valueColor ?? Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.65),
+          ),
+        )),
       ],
     );
   }

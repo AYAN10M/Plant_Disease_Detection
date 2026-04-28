@@ -2,9 +2,19 @@ from rest_framework import serializers
 from .models import Detection
 from diseases.serializers import DiseaseDetailSerializer
 
+# 10 MB upload limit — matches frontend guard
+_MAX_IMAGE_BYTES = 10 * 1024 * 1024
+
+# Permitted MIME types for uploaded leaf images
+_ALLOWED_CONTENT_TYPES = {
+    'image/jpeg', 'image/jpg', 'image/png',
+    'image/webp', 'image/heic', 'image/heif',
+}
+
 
 class DetectionCreateSerializer(serializers.ModelSerializer):
-    """Input — what Flutter sends to us"""
+    """Input — what Flutter sends to us."""
+
     class Meta:
         model  = Detection
         fields = ['plant', 'uploaded_image']
@@ -14,6 +24,24 @@ class DetectionCreateSerializer(serializers.ModelSerializer):
                 'allow_null': True,
             },
         }
+
+    def validate_uploaded_image(self, value):
+        # Size check
+        if value.size > _MAX_IMAGE_BYTES:
+            raise serializers.ValidationError(
+                f'Image is too large ({value.size // (1024*1024)} MB). Maximum is 10 MB.'
+            )
+
+        # Content-type check (header only — not a magic-byte deep scan, but sufficient
+        # to reject obviously wrong file types sent by the Flutter client).
+        content_type = getattr(value, 'content_type', None)
+        if content_type and content_type.lower() not in _ALLOWED_CONTENT_TYPES:
+            raise serializers.ValidationError(
+                f'Unsupported image format: {content_type}. '
+                f'Use JPEG, PNG, or WebP.'
+            )
+
+        return value
 
 
 class DetectionResultSerializer(serializers.ModelSerializer):
@@ -54,7 +82,6 @@ class DetectionResultSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if request is not None:
             return request.build_absolute_uri(field_value.url)
-        # Fallback: return the relative media URL (shouldn't normally happen).
         return field_value.url
 
     def get_uploaded_image(self, obj):

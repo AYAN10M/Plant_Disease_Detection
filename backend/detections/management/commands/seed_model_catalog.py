@@ -23,7 +23,6 @@ PLANT_METADATA = {
     'Pepper, bell': {'scientific_name': 'Capsicum annuum'},
     'Potato': {'scientific_name': 'Solanum tuberosum'},
     'Raspberry': {'scientific_name': 'Rubus idaeus'},
-    'Rice': {'scientific_name': 'Oryza sativa'},
     'Soybean': {'scientific_name': 'Glycine max'},
     'Squash': {'scientific_name': 'Cucurbita pepo'},
     'Strawberry': {'scientific_name': 'Fragaria x ananassa'},
