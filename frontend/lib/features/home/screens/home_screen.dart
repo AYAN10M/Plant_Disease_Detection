@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../../main.dart' show themeModeNotifier;
 import '../../../core/theme/app_theme.dart';
 import '../../../core/services/api_client.dart';
 import '../models/detection_record.dart';
@@ -139,14 +140,30 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    final permission =
-        defaultTargetPlatform == TargetPlatform.iOS ||
-            defaultTargetPlatform == TargetPlatform.macOS
-        ? Permission.photos
-        : Permission.storage;
+    // On Android 13+ (API 33+) READ_EXTERNAL_STORAGE is replaced by
+    // READ_MEDIA_IMAGES. The image_picker plugin handles the picker UI
+    // itself and does NOT require us to pre-request storage permission
+    // — doing so actually causes a denial on many devices. We only
+    // need to request the legacy permission on older Android builds.
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      final sdkInfo = await Permission.storage.status;
+      // If storage is already permanently denied, the system is old
+      // enough that we need it — guide the user to settings.
+      if (sdkInfo.isPermanentlyDenied) {
+        _setScanFeedback(
+          'Photo access is blocked. Open settings to enable it.',
+          actionLabel: 'Open settings',
+          action: openAppSettings,
+        );
+        return false;
+      }
+      // Otherwise, skip the permission dialog and let the OS picker handle it.
+      return true;
+    }
 
+    // iOS / macOS — always need explicit photos permission.
     return _requestPermission(
-      permission,
+      Permission.photos,
       deniedMessage:
           'Photo access is off. Allow it to pick an image from your gallery.',
       permanentlyDeniedMessage:
@@ -350,11 +367,35 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void _toggleTheme() {
+    themeModeNotifier.value =
+        themeModeNotifier.value == ThemeMode.dark
+            ? ThemeMode.light
+            : ThemeMode.dark;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       extendBody: true,
-      appBar: AppBar(title: const Text('Plant Disease Detector')),
+      appBar: AppBar(
+        title: const Text('🌿 Midori'),
+        actions: [
+          IconButton(
+            tooltip: isDark ? 'Switch to light mode' : 'Switch to dark mode',
+            icon: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: Icon(
+                isDark ? Icons.wb_sunny_rounded : Icons.nightlight_round,
+                key: ValueKey(isDark),
+              ),
+            ),
+            onPressed: _toggleTheme,
+          ),
+          const SizedBox(width: 4),
+        ],
+      ),
       body: IndexedStack(
         index: _currentIndex,
         children: [_buildScanTab(), _buildHistoryTab()],
@@ -381,11 +422,24 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildFloatingCuboidNavBar() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = isDark
+        ? const Color(0xFF3A3A3A)
+        : const Color(0xFFDDDDDD);
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFBDBDBD), width: 1.2),
+        border: Border.all(color: borderColor, width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: isDark
+                ? Colors.black.withValues(alpha: 0.4)
+                : Colors.black.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -478,84 +532,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 12),
             GestureDetector(
               onTap: () => _pickImage(ImageSource.gallery),
-              child: Container(
-                height: 220,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.green.shade50,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.green.shade100),
-                ),
-                child: _selectedImageBytes == null
-                    ? const Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.add_photo_alternate_outlined, size: 44),
-                          SizedBox(height: 8),
-                          Text(
-                            'Tap to choose a photo',
-                            style: TextStyle(fontSize: 14),
-                          ),
-                        ],
-                      )
-                    : SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.all(8),
-                        child: Row(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(16),
-                              child: Container(
-                                width: 320,
-                                height: 204,
-                                color: Colors.white,
-                                child: Image.memory(
-                                  _selectedImageBytes!,
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(16),
-                              child: Container(
-                                width: 320,
-                                height: 204,
-                                color: Colors.green.shade100,
-                                child: _detecting
-                                    ? const Center(
-                                        child: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                            ),
-                                            SizedBox(height: 10),
-                                            Text(
-                                              'Generating heatmap…',
-                                              style: TextStyle(fontSize: 13),
-                                            ),
-                                          ],
-                                        ),
-                                      )
-                                    : _gradcamBytes != null
-                                        ? Image.memory(
-                                            _gradcamBytes!,
-                                            fit: BoxFit.cover,
-                                          )
-                                        : const Center(
-                                            child: Text(
-                                              'Grad-CAM preview\nappears after detection',
-                                              style: TextStyle(fontSize: 13),
-                                              textAlign: TextAlign.center,
-                                            ),
-                                          ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-              ),
+              child: _buildPhotoPreviewArea(),
             ),
             const SizedBox(height: 12),
             Row(
@@ -612,8 +589,115 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildResultCard(DetectionApiResponse response) {
-    final result = response.data;
+  /// The photo preview zone inside the image card — theme-aware.
+  Widget _buildPhotoPreviewArea() {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = cs.brightness == Brightness.dark;
+    final emptyBg = isDark
+        ? const Color(0xFF1A2E1A)   // very dark green tint
+        : const Color(0xFFF0F7F0);  // soft light green
+    final emptyBorder = isDark
+        ? const Color(0xFF2D4A2D)
+        : const Color(0xFFB8DEB8);
+    final gradcamBg = isDark
+        ? const Color(0xFF1A2A1A)
+        : const Color(0xFFE8F5E9);
+
+    return Container(
+      height: 220,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: emptyBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: emptyBorder),
+      ),
+      child: _selectedImageBytes == null
+          ? Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.add_photo_alternate_outlined,
+                  size: 44,
+                  color: cs.primary.withValues(alpha: 0.6),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Tap to choose a photo',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: cs.onSurface.withValues(alpha: 0.55),
+                  ),
+                ),
+              ],
+            )
+          : SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.all(8),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      width: 320,
+                      height: 204,
+                      color: cs.surface,
+                      child: Image.memory(
+                        _selectedImageBytes!,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      width: 320,
+                      height: 204,
+                      color: gradcamBg,
+                      child: _detecting
+                          ? Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: cs.primary,
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    'Generating heatmap…',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: cs.onSurface.withValues(alpha: 0.7),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : _gradcamBytes != null
+                              ? Image.memory(
+                                  _gradcamBytes!,
+                                  fit: BoxFit.cover,
+                                )
+                              : Center(
+                                  child: Text(
+                                    'Grad-CAM\nappears after detection',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: cs.onSurface.withValues(alpha: 0.55),
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget _buildResultCard(DetectionApiResponse response) {    final result = response.data;
     if (result == null) {
       return const SizedBox.shrink();
     }
