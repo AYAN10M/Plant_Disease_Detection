@@ -1,6 +1,23 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+String humanizeModelLabel(String? label) {
+  if (label == null || label.trim().isEmpty) {
+    return 'Unknown';
+  }
+
+  var value = label.trim();
+  if (value.contains('___')) {
+    value = value.split('___').last;
+  } else if (value.contains('__')) {
+    value = value.split('__').last;
+  }
+
+  value = value.replaceAll('_', ' ');
+  value = value.replaceAll(RegExp(r'\s+'), ' ').trim();
+  return value;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // API response wrappers (used when talking to the real Django backend)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -59,7 +76,7 @@ class DetectionResult {
     return DetectionResult(
       id: json['id'] as int,
       plantName: json['plant_name'] as String? ?? '',
-      diseaseName: diseaseDetail?['name'] as String?,
+      diseaseName: humanizeModelLabel(diseaseDetail?['name'] as String?),
       diseaseCause: diseaseDetail?['cause'] as String?,
       diseaseDescription: diseaseDetail?['description'] as String?,
       diseaseRemedy: diseaseDetail?['remedy'] as String?,
@@ -149,7 +166,9 @@ class DetectionHistoryEntry {
   }) {
     return DetectionHistoryEntry(
       plantName: result.plantName,
-      diseaseName: result.diseaseName,
+      diseaseName: result.diseaseName != null
+          ? humanizeModelLabel(result.diseaseName)
+          : null,
       diseaseCause: result.diseaseCause,
       diseaseDescription: result.diseaseDescription,
       diseaseRemedy: result.diseaseRemedy,

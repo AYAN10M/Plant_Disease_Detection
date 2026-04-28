@@ -1,0 +1,92 @@
+# ============================================================
+#  Midori — Plant Disease Detection  |  Root .gitignore
+# ============================================================
+
+# ── Secrets & environment ────────────────────────────────────
+.env
+*.env
+.env.*
+!.env.example
+
+# ── Python ───────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+backend/venv/
+backend/.venv/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+
+# Jupyter / IPython
+.ipynb_checkpoints/
+*.ipynb
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+static_root/
+
+# ── ML model weights (large binary files) ────────────────────
+*.h5
+*.keras
+*.pb
+*.tflite
+*.pt
+*.pth
+*.ckpt
+*.pkl
+*.joblib
+saved_model/
+
+# ── Flutter / Dart ───────────────────────────────────────────
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/frontend/build/
+/frontend/coverage/
+
+# Symbolication & obfuscation
+app.*.symbols
+app.*.map.json
+
+# Android build artefacts
+/frontend/android/app/debug/
+/frontend/android/app/profile/
+/frontend/android/app/release/
+
+# ── IDE / editor ─────────────────────────────────────────────
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── OS ───────────────────────────────────────────────────────
+.DS_Store
+ehthumbs.db
+Desktop.ini

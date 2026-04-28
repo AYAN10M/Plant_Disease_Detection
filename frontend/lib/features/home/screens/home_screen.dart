@@ -1,6 +1,3 @@
-import 'dart:math';
-import 'dart:typed_data';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -8,7 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/theme/app_theme.dart';
-import '../data/dummy_catalog.dart';
+import '../../../core/services/api_client.dart';
 import '../models/detection_record.dart';
 import '../services/detection_history_store.dart';
 
@@ -26,7 +23,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final DetectionHistoryStore _historyStore = DetectionHistoryStore();
   final ImagePicker _picker = ImagePicker();
-  final Random _random = Random();
+  final MidoriApiClient _apiClient = MidoriApiClient();
   final TextEditingController _historySearchController =
       TextEditingController();
 
@@ -57,6 +54,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _historySearchController.dispose();
+    _apiClient.close();
     super.dispose();
   }
 
@@ -242,40 +240,17 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      await Future<void>.delayed(const Duration(milliseconds: 700));
-
-      final plant = demoPlants[_random.nextInt(demoPlants.length)];
-      final disease = plant.diseases[_random.nextInt(plant.diseases.length)];
-      final confidence = double.parse(
-        (_random.nextDouble() * 0.59 + 0.40).toStringAsFixed(2),
+      final response = await _apiClient.detectImage(
+        imageBytes: _selectedImageBytes!,
+        filename: _selectedImage!.name,
       );
-      final isLowConfidence = confidence < 0.60;
-      final status = isLowConfidence ? 'low_confidence' : 'success';
-      final message = isLowConfidence
-          ? 'Confidence is low. Try scanning another leaf in better lighting.'
-          : 'Demo detection generated locally on this device.';
+      final result = response.data;
 
-      final result = DetectionResult(
-        id: DateTime.now().millisecondsSinceEpoch,
-        plantName: plant.name,
-        diseaseName: disease.name,
-        diseaseCause: disease.cause,
-        diseaseDescription: disease.symptoms,
-        diseaseRemedy: disease.remedy,
-        diseasePrevention: disease.prevention,
-        uploadedImageUrl: _selectedImage!.name,
-        gradcamImageUrl: null,
-        confidence: confidence,
-        confidencePct: '${(confidence * 100).toStringAsFixed(1)}%',
-        status: status,
-        createdAt: DateTime.now(),
-      );
-
-      final response = DetectionApiResponse(
-        status: status,
-        message: message,
-        data: result,
-      );
+      if (result == null) {
+        throw MidoriApiException(
+          'The detection API returned no prediction data.',
+        );
+      }
 
       if (!mounted) {
         return;
@@ -285,16 +260,24 @@ class _HomeScreenState extends State<HomeScreen> {
         _latestResult = response;
       });
 
+      final gradcamBytes = await _apiClient.fetchBytes(result.gradcamImageUrl);
+
       final historyEntry = DetectionHistoryEntry.fromDetection(
         result: result,
-        message: message,
+        message: response.message,
         imageBytes: _selectedImageBytes,
-        gradcamBytes: null,
+        gradcamBytes: gradcamBytes,
       );
       await _saveHistoryEntry(historyEntry);
+    } on MidoriApiException catch (error) {
+      _setScanFeedback(
+        error.message,
+        actionLabel: 'Retry detection',
+        action: _runDetection,
+      );
     } catch (_) {
       _setScanFeedback(
-        'Detection failed. Please try again.',
+        'Detection failed. Please check the backend connection and try again.',
         actionLabel: 'Retry detection',
         action: _runDetection,
       );
@@ -446,7 +429,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   _buildLoadingNotice(
                     title: 'Analyzing photo',
                     message:
-                        'Please wait while the demo model generates a prediction.',
+                        'Please wait while the trained model analyzes the leaf photo.',
                   ),
                 ],
                 if (_scanFeedbackMessage != null) ...[
@@ -533,8 +516,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                 color: Colors.green.shade100,
                                 child: const Center(
                                   child: Text(
-                                    'Grad-CAM preview (coming)',
+                                    'Grad-CAM preview appears after detection',
                                     style: TextStyle(fontSize: 14),
+                                    textAlign: TextAlign.center,
                                   ),
                                 ),
                               ),
@@ -608,6 +592,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final confidenceColor = result.confidence < 0.60
         ? Colors.orange.shade700
         : Colors.green.shade700;
+    final gradcamUri = _apiClient.resolveMediaUri(result.gradcamImageUrl);
 
     return Card(
       elevation: 0,
@@ -626,7 +611,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 Chip(
                   label: Text(result.confidencePct),
-                  backgroundColor: confidenceColor.withOpacity(0.12),
+                  backgroundColor: confidenceColor.withValues(alpha: 0.12),
                   labelStyle: TextStyle(color: confidenceColor),
                 ),
               ],
@@ -641,6 +626,47 @@ class _HomeScreenState extends State<HomeScreen> {
               'Plant: ${result.plantName}',
               style: const TextStyle(fontSize: 14),
             ),
+            if (_selectedImageBytes != null ||
+                result.gradcamImageUrl != null) ...[
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildPreviewTile(
+                      title: 'Uploaded image',
+                      child: Image.memory(
+                        _selectedImageBytes!,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildPreviewTile(
+                      title: 'Grad-CAM',
+                      child: gradcamUri == null
+                          ? const Center(
+                              child: Text(
+                                'Heatmap not available',
+                                textAlign: TextAlign.center,
+                              ),
+                            )
+                          : Image.network(
+                              gradcamUri.toString(),
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  const Center(
+                                    child: Text(
+                                      'Heatmap unavailable',
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 16),
             _buildDetailGroup(
               title: 'Prediction details',
@@ -835,7 +861,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<_HistorySearchScope>(
-              value: _historySearchScope,
+              initialValue: _historySearchScope,
               decoration: const InputDecoration(
                 labelText: 'Filter by',
                 border: OutlineInputBorder(),
@@ -866,7 +892,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<_HistorySortMode>(
-              value: _historySortMode,
+              initialValue: _historySortMode,
               decoration: const InputDecoration(
                 labelText: 'Sort by',
                 border: OutlineInputBorder(),
@@ -1096,6 +1122,51 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 12),
           ...children,
         ],
+      ),
+    );
+  }
+
+  Widget _buildPreviewTile({required String title, required Widget child}) {
+    return Container(
+      height: 190,
+      decoration: BoxDecoration(
+        color: Colors.green.shade50,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.green.shade100),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            child,
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.04),
+                    Colors.black.withValues(alpha: 0.24),
+                  ],
+                ),
+              ),
+            ),
+            Positioned(
+              left: 12,
+              right: 12,
+              bottom: 12,
+              child: Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

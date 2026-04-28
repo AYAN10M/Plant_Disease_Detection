@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import Detection
+from diseases.models import Disease
 from .serializers import DetectionCreateSerializer, DetectionResultSerializer
 from .ml_model import run_prediction, generate_gradcam
 from constants import (
@@ -24,7 +25,7 @@ class DetectView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        plant          = serializer.validated_data['plant']
+        plant          = serializer.validated_data.get('plant')
         uploaded_image = serializer.validated_data['uploaded_image']
 
         # Save the detection first so Django writes the image to disk.
@@ -37,16 +38,20 @@ class DetectView(APIView):
             status         = 'processing',
         )
 
-        disease_id, confidence = run_prediction(
+        disease_id, confidence, class_name = run_prediction(
             image_path=detection.uploaded_image.path,
-            plant_id=plant.id,
+            plant_id=plant.id if plant is not None else None,
         )
 
-        # ── Low-confidence path ───────────────────────────────────────────────
+        disease = Disease.objects.select_related('plant').filter(id=disease_id).first()
+        if disease is not None:
+            detection.plant = disease.plant
+            detection.disease = disease
+
         if confidence < CONFIDENCE_THRESHOLD:
             detection.confidence = confidence
             detection.status     = 'low_confidence'
-            detection.save(update_fields=['confidence', 'status'])
+            detection.save(update_fields=['plant', 'disease', 'confidence', 'status'])
 
             result = DetectionResultSerializer(detection, context={'request': request})
             return Response({
@@ -55,14 +60,12 @@ class DetectView(APIView):
                 'data'    : result.data,
             }, status=status.HTTP_200_OK)
 
-        # ── Success path ──────────────────────────────────────────────────────
-        gradcam_path = generate_gradcam(detection.uploaded_image.path)
+        gradcam_path = generate_gradcam(detection.uploaded_image.path, class_name)
 
-        detection.disease_id    = disease_id
         detection.gradcam_image = gradcam_path
         detection.confidence    = confidence
         detection.status        = 'success'
-        detection.save(update_fields=['disease_id', 'gradcam_image', 'confidence', 'status'])
+        detection.save(update_fields=['plant', 'disease', 'gradcam_image', 'confidence', 'status'])
 
         result = DetectionResultSerializer(detection, context={'request': request})
         return Response({
