@@ -43,6 +43,7 @@ class _HomeScreenState extends State<HomeScreen> {
   DetectionHistoryEntry? _pendingHistoryEntry;
   XFile? _selectedImage;
   Uint8List? _selectedImageBytes;
+  Uint8List? _gradcamBytes;
   DetectionApiResponse? _latestResult;
 
   @override
@@ -203,6 +204,7 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _selectedImage = image;
         _selectedImageBytes = bytes;
+        _gradcamBytes = null;
         _latestResult = null;
         _pendingHistoryEntry = null;
       });
@@ -261,6 +263,12 @@ class _HomeScreenState extends State<HomeScreen> {
       });
 
       final gradcamBytes = await _apiClient.fetchBytes(result.gradcamImageUrl);
+
+      if (mounted && gradcamBytes != null) {
+        setState(() {
+          _gradcamBytes = gradcamBytes;
+        });
+      }
 
       final historyEntry = DetectionHistoryEntry.fromDetection(
         result: result,
@@ -514,13 +522,34 @@ class _HomeScreenState extends State<HomeScreen> {
                                 width: 320,
                                 height: 204,
                                 color: Colors.green.shade100,
-                                child: const Center(
-                                  child: Text(
-                                    'Grad-CAM preview appears after detection',
-                                    style: TextStyle(fontSize: 14),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
+                                child: _detecting
+                                    ? const Center(
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                            SizedBox(height: 10),
+                                            Text(
+                                              'Generating heatmap…',
+                                              style: TextStyle(fontSize: 13),
+                                            ),
+                                          ],
+                                        ),
+                                      )
+                                    : _gradcamBytes != null
+                                        ? Image.memory(
+                                            _gradcamBytes!,
+                                            fit: BoxFit.cover,
+                                          )
+                                        : const Center(
+                                            child: Text(
+                                              'Grad-CAM preview\nappears after detection',
+                                              style: TextStyle(fontSize: 13),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ),
                               ),
                             ),
                           ],
@@ -589,10 +618,12 @@ class _HomeScreenState extends State<HomeScreen> {
       return const SizedBox.shrink();
     }
 
-    final confidenceColor = result.confidence < 0.60
-        ? Colors.orange.shade700
-        : Colors.green.shade700;
-    final gradcamUri = _apiClient.resolveMediaUri(result.gradcamImageUrl);
+    final isLowConf = result.confidence < 0.60;
+    final confidenceColor = result.confidence >= 0.80
+        ? const Color(0xFF2E7D32)   // deep green
+        : result.confidence >= 0.60
+            ? const Color(0xFFF9A825) // amber
+            : const Color(0xFFD84315); // deep orange-red
 
     return Card(
       elevation: 0,
@@ -601,39 +632,100 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    'Top prediction',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+
+            // ── Low-confidence top banner ─────────────────────────────────
+            if (isLowConf) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD84315).withValues(alpha: 0.09),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: const Color(0xFFD84315).withValues(alpha: 0.35),
                   ),
                 ),
-                Chip(
-                  label: Text(result.confidencePct),
-                  backgroundColor: confidenceColor.withValues(alpha: 0.12),
-                  labelStyle: TextStyle(color: confidenceColor),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(
+                          Icons.warning_amber_rounded,
+                          color: Color(0xFFD84315),
+                          size: 20,
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          'Low confidence — Retake recommended',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFFD84315),
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (response.message != null &&
+                        response.message!.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        response.message!,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF5D4037),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFD84315),
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(double.infinity, 46),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: _retakePhoto,
+                      icon: const Icon(Icons.camera_alt_rounded),
+                      label: const Text(
+                        'Retake Photo',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            // ── Header: disease name ──────────────────────────────────────
             Text(
               result.diseaseName ?? 'No disease matched',
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               'Plant: ${result.plantName}',
               style: const TextStyle(fontSize: 14),
             ),
-            if (_selectedImageBytes != null ||
-                result.gradcamImageUrl != null) ...[
+            const SizedBox(height: 16),
+
+            // ── Animated confidence bar ───────────────────────────────────
+            _buildConfidenceBar(result.confidence, confidenceColor),
+
+            // ── Side-by-side image previews ───────────────────────────────
+            if (_selectedImageBytes != null) ...[
               const SizedBox(height: 16),
               Row(
                 children: [
                   Expanded(
                     child: _buildPreviewTile(
-                      title: 'Uploaded image',
+                      title: 'Original',
                       child: Image.memory(
                         _selectedImageBytes!,
                         fit: BoxFit.cover,
@@ -644,39 +736,32 @@ class _HomeScreenState extends State<HomeScreen> {
                   Expanded(
                     child: _buildPreviewTile(
                       title: 'Grad-CAM',
-                      child: gradcamUri == null
-                          ? const Center(
-                              child: Text(
-                                'Heatmap not available',
-                                textAlign: TextAlign.center,
-                              ),
-                            )
-                          : Image.network(
-                              gradcamUri.toString(),
+                      child: _gradcamBytes != null
+                          ? Image.memory(
+                              _gradcamBytes!,
                               fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  const Center(
-                                    child: Text(
-                                      'Heatmap unavailable',
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ),
+                            )
+                          : const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(8),
+                                child: Text(
+                                  'Heatmap not\navailable',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(fontSize: 13),
+                                ),
+                              ),
                             ),
                     ),
                   ),
                 ],
               ),
             ],
+
+            // ── Disease details ───────────────────────────────────────────
             const SizedBox(height: 16),
             _buildDetailGroup(
               title: 'Prediction details',
               children: [
-                _DetailLine(
-                  label: 'Confidence',
-                  value: result.confidencePct,
-                  valueColor: confidenceColor,
-                ),
-                const SizedBox(height: 10),
                 _DetailLine(
                   label: 'Cause',
                   value: result.diseaseCause ?? 'Not available yet',
@@ -700,32 +785,92 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [Text(result.diseaseDescription!)],
               ),
             ],
-            if (response.message != null && response.message!.isNotEmpty) ...[
+
+            // ── Info note for high-confidence results ─────────────────────
+            if (!isLowConf &&
+                response.message != null &&
+                response.message!.isNotEmpty) ...[
               const SizedBox(height: 12),
               _buildNoticeCard(
-                icon: result.confidence < 0.60
-                    ? Icons.warning_amber_outlined
-                    : Icons.info_outline,
-                title: result.confidence < 0.60
-                    ? 'Low-confidence note'
-                    : 'Result note',
+                icon: Icons.info_outline,
+                title: 'Result note',
                 message: response.message!,
-                iconColor: confidenceColor,
-              ),
-            ],
-            if (result.confidence < 0.60) ...[
-              const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _retakePhoto,
-                  icon: const Icon(Icons.camera_alt_outlined),
-                  label: const Text('Retake photo'),
-                ),
+                iconColor: Colors.green.shade700,
               ),
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  /// Animated confidence progress bar with label.
+  Widget _buildConfidenceBar(double confidence, Color color) {
+    final label = confidence >= 0.80
+        ? 'High confidence'
+        : confidence >= 0.60
+            ? 'Moderate confidence'
+            : 'Low confidence';
+    final pct = '${(confidence * 100).toStringAsFixed(1)}%';
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Confidence',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                pct,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: confidence),
+              duration: const Duration(milliseconds: 800),
+              curve: Curves.easeOutCubic,
+              builder: (context, value, _) {
+                return LinearProgressIndicator(
+                  value: value,
+                  minHeight: 10,
+                  backgroundColor: color.withValues(alpha: 0.15),
+                  valueColor: AlwaysStoppedAnimation<Color>(color),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }

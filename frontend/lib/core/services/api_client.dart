@@ -47,18 +47,24 @@ class MidoriApiClient {
 
   Uri _resolveUri(String path) {
     final uri = Uri.parse(path);
+    // If the backend already returned an absolute URL (which it does now via
+    // request.build_absolute_uri), use it directly.
     if (uri.hasScheme) {
       return uri;
     }
 
+    // Fallback for legacy relative paths — prepend base URL.
     return Uri.parse('$_baseUrl${path.startsWith('/') ? '' : '/'}$path');
   }
 
+  /// Resolve a media URL returned by the backend.
+  ///
+  /// The backend now returns **absolute** URLs, so this mostly passes through.
+  /// Falls back to constructing an absolute URL for any legacy relative path.
   Uri? resolveMediaUri(String? path) {
     if (path == null || path.isEmpty) {
       return null;
     }
-
     return _resolveUri(path);
   }
 
@@ -95,17 +101,23 @@ class MidoriApiClient {
     return DetectionApiResponse.fromJson(decoded);
   }
 
+  /// Fetch raw bytes from an absolute URL returned by the backend.
+  ///
+  /// Returns null when [path] is empty, null, or the request fails.
   Future<Uint8List?> fetchBytes(String? path) async {
     if (path == null || path.isEmpty) {
       return null;
     }
 
-    final response = await _client.get(_resolveUri(path));
-    if (response.statusCode < 200 || response.statusCode >= 300) {
+    try {
+      final response = await _client.get(_resolveUri(path));
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return null;
+      }
+      return response.bodyBytes;
+    } catch (_) {
       return null;
     }
-
-    return response.bodyBytes;
   }
 
   String _extractErrorMessage(String responseBody, int statusCode) {
