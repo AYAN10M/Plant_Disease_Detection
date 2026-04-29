@@ -5,8 +5,16 @@ Import these instead of scattering magic numbers across views.
 
 # ── Detection ────────────────────────────────────────────────────────────────
 CONFIDENCE_THRESHOLD  = 0.60          # below this → prompt user to retake photo
-NOT_A_PLANT_THRESHOLD = 0.25          # below this (after temperature scaling) → not a plant
+NOT_A_PLANT_THRESHOLD = 0.10          # below this (raw softmax prob) → not a plant
                                        # Must stay in sync with ml_model.NOT_A_PLANT_THRESHOLD
+
+# Substring in class label that indicates a healthy plant (PlantVillage naming)
+IS_HEALTHY_KEYWORD = 'healthy'
+
+HEALTHY_MESSAGE = (
+    "Your plant looks healthy! No signs of disease were detected. "
+    "Keep up the good care! 🌱"
+)
 
 LOW_CONFIDENCE_MESSAGE = (
     "Confidence is too low. Please retake the photo in better lighting "

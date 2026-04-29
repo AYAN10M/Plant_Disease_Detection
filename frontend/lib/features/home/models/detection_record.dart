@@ -53,6 +53,7 @@ class DetectionResult {
   final double confidence;
   final String confidencePct;
   final String status;
+  final bool isHealthy;
   final DateTime? createdAt;
 
   const DetectionResult({
@@ -68,11 +69,13 @@ class DetectionResult {
     required this.confidence,
     required this.confidencePct,
     required this.status,
+    required this.isHealthy,
     required this.createdAt,
   });
 
   factory DetectionResult.fromJson(Map<String, dynamic> json) {
     final diseaseDetail = json['disease_detail'] as Map<String, dynamic>?;
+    final statusStr = json['status'] as String? ?? 'success';
     return DetectionResult(
       id: json['id'] as int,
       plantName: json['plant_name'] as String? ?? '',
@@ -85,7 +88,8 @@ class DetectionResult {
       gradcamImageUrl: json['gradcam_image'] as String?,
       confidence: (json['confidence'] as num?)?.toDouble() ?? 0.0,
       confidencePct: json['confidence_pct'] as String? ?? '0%',
-      status: json['status'] as String? ?? 'success',
+      status: statusStr,
+      isHealthy: (json['is_healthy'] as bool?) ?? (statusStr == 'healthy'),
       createdAt: DateTime.tryParse(json['created_at'] as String? ?? ''),
     );
   }
@@ -115,6 +119,7 @@ class DetectionHistoryEntry {
 
   final double confidence;
   final String status;
+  final bool isHealthy;
   final DateTime createdAt;
 
   const DetectionHistoryEntry({
@@ -131,6 +136,7 @@ class DetectionHistoryEntry {
     this.gradcamBase64,
     required this.confidence,
     required this.status,
+    required this.isHealthy,
     required this.createdAt,
   });
 
@@ -164,11 +170,11 @@ class DetectionHistoryEntry {
     Uint8List? imageBytes,
     Uint8List? gradcamBytes,
   }) {
+    // result.diseaseName is already humanized in DetectionResult.fromJson —
+    // do NOT call humanizeModelLabel again or names get processed twice.
     return DetectionHistoryEntry(
-      plantName: result.plantName,
-      diseaseName: result.diseaseName != null
-          ? humanizeModelLabel(result.diseaseName)
-          : null,
+      plantName: result.plantName.isNotEmpty ? result.plantName : 'Unknown plant',
+      diseaseName: result.diseaseName,
       diseaseCause: result.diseaseCause,
       diseaseDescription: result.diseaseDescription,
       diseaseRemedy: result.diseaseRemedy,
@@ -180,11 +186,13 @@ class DetectionHistoryEntry {
       gradcamBase64: gradcamBytes != null ? base64Encode(gradcamBytes) : null,
       confidence: result.confidence,
       status: result.status,
+      isHealthy: result.isHealthy,
       createdAt: result.createdAt ?? DateTime.now(),
     );
   }
 
   factory DetectionHistoryEntry.fromJson(Map<String, dynamic> json) {
+    final statusStr = json['status'] as String? ?? 'success';
     return DetectionHistoryEntry(
       plantName: json['plantName'] as String? ?? '',
       diseaseName: json['diseaseName'] as String?,
@@ -198,7 +206,8 @@ class DetectionHistoryEntry {
       imageBase64: json['imageBase64'] as String?,
       gradcamBase64: json['gradcamBase64'] as String?,
       confidence: (json['confidence'] as num?)?.toDouble() ?? 0.0,
-      status: json['status'] as String? ?? 'success',
+      status: statusStr,
+      isHealthy: (json['isHealthy'] as bool?) ?? (statusStr == 'healthy'),
       createdAt:
           DateTime.tryParse(json['createdAt'] as String? ?? '') ??
           DateTime.now(),
@@ -220,6 +229,7 @@ class DetectionHistoryEntry {
       'gradcamBase64': gradcamBase64,
       'confidence': confidence,
       'status': status,
+      'isHealthy': isHealthy,
       'createdAt': createdAt.toIso8601String(),
     };
   }

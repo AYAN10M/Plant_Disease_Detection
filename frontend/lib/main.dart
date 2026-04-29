@@ -9,9 +9,7 @@ import 'features/home/screens/home_screen.dart';
 final themeModeNotifier = ValueNotifier<ThemeMode>(ThemeMode.light);
 
 void main() {
-  runApp(
-    const ProviderScope(child: MidoriApp()),
-  );
+  runApp(const ProviderScope(child: MidoriApp()));
 }
 
 class MidoriApp extends StatefulWidget {

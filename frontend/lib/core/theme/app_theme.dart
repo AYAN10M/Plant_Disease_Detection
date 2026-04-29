@@ -108,14 +108,30 @@ class AppTheme {
         splashFactory: _noSplash,
       ),
     ),
-    navigationBarTheme: const NavigationBarThemeData(
+    navigationBarTheme: NavigationBarThemeData(
       backgroundColor: AppColors.white,
       surfaceTintColor: Colors.transparent,
       indicatorColor: AppColors.green50,
-      iconTheme: WidgetStatePropertyAll(IconThemeData(color: AppColors.gray400)),
-      labelTextStyle: WidgetStatePropertyAll(
-        TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: AppColors.gray400),
-      ),
+      iconTheme: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return const IconThemeData(color: AppColors.green600);
+        }
+        return const IconThemeData(color: AppColors.gray400);
+      }),
+      labelTextStyle: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 12,
+            color: AppColors.green600,
+          );
+        }
+        return const TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
+          color: AppColors.gray400,
+        );
+      }),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
@@ -198,14 +214,30 @@ class AppTheme {
         splashFactory: _noSplash,
       ),
     ),
-    navigationBarTheme: const NavigationBarThemeData(
+    navigationBarTheme: NavigationBarThemeData(
       backgroundColor: AppColors.gray900,
       surfaceTintColor: Colors.transparent,
-      indicatorColor: Color(0xFF1B3A1B),
-      iconTheme: WidgetStatePropertyAll(IconThemeData(color: AppColors.gray400)),
-      labelTextStyle: WidgetStatePropertyAll(
-        TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: AppColors.gray400),
-      ),
+      indicatorColor: const Color(0xFF1B3A1B),
+      iconTheme: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return const IconThemeData(color: AppColors.green400);
+        }
+        return const IconThemeData(color: AppColors.gray400);
+      }),
+      labelTextStyle: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 12,
+            color: AppColors.green400,
+          );
+        }
+        return const TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
+          color: AppColors.gray400,
+        );
+      }),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,

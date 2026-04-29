@@ -318,8 +318,8 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!_serverReady) {
         setState(() => _detecting = false);
         _setScanFeedback(
-          'Cannot reach the backend server.\n'
-          'Run: cd backend → python manage.py runserver',
+          'Cannot reach the backend server. Start it with:\n'
+          'cd backend  ->  python manage.py runserver 0.0.0.0:8000',
           actionLabel: 'Retry',
           action: _runDetection,
         );
@@ -355,8 +355,9 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       setState(() => _latestResult = response);
 
-      // Not a plant — show feedback and return (finally will clear the spinner).
+      // Not a plant — show feedback, clear result so no blank card shows.
       if (response.status == 'not_a_plant') {
+        setState(() => _latestResult = null);
         _setScanFeedback(
           response.message ?? '🌿 Please provide a clear photo of a plant leaf.',
           actionLabel: 'Choose another photo',
@@ -375,6 +376,7 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() => _gradcamBytes = gradcamBytes);
       }
 
+      // Save to history for BOTH success and low_confidence results.
       final historyEntry = DetectionHistoryEntry.fromDetection(
         result: result,
         message: response.message,
@@ -592,9 +594,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   _buildLoadingNotice(
                     title: 'Analyzing photo',
                     message:
-                        'Running MobileNetV2 + Grad-CAM inference. '
-                        'First scan after server start may take 10–30 s '
-                        'while the model warms up.',
+                        'Step 1: Checking if this is a plant leaf…\n'
+                        'Step 2: Running MobileNetV2 + Grad-CAM inference.\n'
+                        'First scan after server start may take 10–30 s.',
                   ),
                 ],
                 if (_scanFeedbackMessage != null) ...[
@@ -790,8 +792,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
-            ),
-    );
+          ),
+        );
   }
 
   Widget _buildResultCard(DetectionApiResponse response) {
@@ -800,7 +802,8 @@ class _HomeScreenState extends State<HomeScreen> {
       return const SizedBox.shrink();
     }
 
-    final isLowConf = result.confidence < 0.60;
+    final isHealthy  = result.isHealthy;
+    final isLowConf  = result.confidence < 0.60;
     final confidenceColor = result.confidence >= 0.80
         ? const Color(0xFF2E7D32)   // deep green
         : result.confidence >= 0.60
@@ -815,8 +818,59 @@ class _HomeScreenState extends State<HomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
 
+            // ── Healthy plant banner ──────────────────────────────────────
+            if (isHealthy) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2E7D32).withValues(alpha: 0.09),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: const Color(0xFF2E7D32).withValues(alpha: 0.35),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(
+                          Icons.check_circle_rounded,
+                          color: Color(0xFF2E7D32),
+                          size: 22,
+                        ),
+                        SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            'Healthy Plant — No disease detected! 🌱',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF2E7D32),
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (response.message != null && response.message!.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        response.message!,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF1B5E20),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
             // ── Low-confidence top banner ─────────────────────────────────
-            if (isLowConf) ...[
+            if (!isHealthy && isLowConf) ...[
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
@@ -882,9 +936,11 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 16),
             ],
 
-            // ── Header: disease name ──────────────────────────────────────
+            // ── Header: plant / disease name ──────────────────────────────
             Text(
-              result.diseaseName ?? 'No disease matched',
+              isHealthy
+                  ? (result.plantName.isNotEmpty ? result.plantName : 'Plant')
+                  : (result.diseaseName ?? 'No disease matched'),
               style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
@@ -892,7 +948,9 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Plant: ${result.plantName}',
+              isHealthy
+                  ? 'Status: Healthy ✅'
+                  : 'Plant: ${result.plantName}',
               style: const TextStyle(fontSize: 14),
             ),
             const SizedBox(height: 16),
@@ -900,7 +958,7 @@ class _HomeScreenState extends State<HomeScreen> {
             // ── Animated confidence bar ───────────────────────────────────
             _buildConfidenceBar(result.confidence, confidenceColor),
 
-            // ── Side-by-side image previews ───────────────────────────────
+            // ── Side-by-side image previews (original + Grad-CAM) ─────────
             if (_selectedImageBytes != null) ...[
               const SizedBox(height: 16),
               Row(
@@ -908,6 +966,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   Expanded(
                     child: _buildPreviewTile(
                       title: 'Original',
+                      fullscreenBytes: _selectedImageBytes,
                       child: Image.memory(
                         _selectedImageBytes!,
                         fit: BoxFit.cover,
@@ -918,18 +977,21 @@ class _HomeScreenState extends State<HomeScreen> {
                   Expanded(
                     child: _buildPreviewTile(
                       title: 'Grad-CAM',
+                      fullscreenBytes: _gradcamBytes,
                       child: _gradcamBytes != null
                           ? Image.memory(
                               _gradcamBytes!,
                               fit: BoxFit.cover,
                             )
-                          : const Center(
+                          : Center(
                               child: Padding(
-                                padding: EdgeInsets.all(8),
+                                padding: const EdgeInsets.all(8),
                                 child: Text(
-                                  'Heatmap not\navailable',
+                                  _detecting
+                                      ? 'Generating heatmap…'
+                                      : 'Heatmap not\navailable',
                                   textAlign: TextAlign.center,
-                                  style: TextStyle(fontSize: 13),
+                                  style: const TextStyle(fontSize: 13),
                                 ),
                               ),
                             ),
@@ -939,37 +1001,70 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
 
-            // ── Disease details ───────────────────────────────────────────
-            const SizedBox(height: 16),
-            _buildDetailGroup(
-              title: 'Prediction details',
-              children: [
-                _DetailLine(
-                  label: 'Cause',
-                  value: result.diseaseCause ?? 'Not available yet',
-                ),
-                const SizedBox(height: 10),
-                _DetailLine(
-                  label: 'Remedy',
-                  value: result.diseaseRemedy ?? 'Not available yet',
-                ),
-                const SizedBox(height: 10),
-                _DetailLine(
-                  label: 'Prevention',
-                  value: result.diseasePrevention ?? 'Not available yet',
+            // ── Disease details (only for diseased plants) ────────────────
+            if (!isHealthy) ...[
+              const SizedBox(height: 16),
+              _buildDetailGroup(
+                title: 'Prediction details',
+                children: [
+                  _DetailLine(
+                    label: 'Cause',
+                    value: result.diseaseCause ?? 'Not available yet',
+                  ),
+                  const SizedBox(height: 10),
+                  _DetailLine(
+                    label: 'Remedy',
+                    value: result.diseaseRemedy ?? 'Not available yet',
+                  ),
+                  const SizedBox(height: 10),
+                  _DetailLine(
+                    label: 'Prevention',
+                    value: result.diseasePrevention ?? 'Not available yet',
+                  ),
+                ],
+              ),
+              if (result.diseaseDescription != null) ...[
+                const SizedBox(height: 12),
+                _buildDetailGroup(
+                  title: 'Description',
+                  children: [Text(result.diseaseDescription!)],
                 ),
               ],
-            ),
-            if (result.diseaseDescription != null) ...[
-              const SizedBox(height: 12),
+            ],
+
+            // ── Healthy care tips placeholder ─────────────────────────────
+            if (isHealthy) ...[
+              const SizedBox(height: 16),
               _buildDetailGroup(
-                title: 'Description',
-                children: [Text(result.diseaseDescription!)],
+                title: 'Keep it healthy 🌿',
+                children: const [
+                  _DetailLine(
+                    label: 'Watering',
+                    value:
+                        'Water consistently but avoid waterlogging. '
+                        'Check soil moisture before each watering.',
+                  ),
+                  SizedBox(height: 10),
+                  _DetailLine(
+                    label: 'Sunlight',
+                    value:
+                        'Ensure adequate sunlight for the plant species. '
+                        'Rotate periodically for even growth.',
+                  ),
+                  SizedBox(height: 10),
+                  _DetailLine(
+                    label: 'Prevention',
+                    value:
+                        'Inspect leaves regularly for early signs of disease. '
+                        'Remove dead leaves promptly and maintain airflow.',
+                  ),
+                ],
               ),
             ],
 
-            // ── Info note for high-confidence results ─────────────────────
-            if (!isLowConf &&
+            // ── Info note for high-confidence disease results ─────────────
+            if (!isHealthy &&
+                !isLowConf &&
                 response.message != null &&
                 response.message!.isNotEmpty) ...[
               const SizedBox(height: 12),
@@ -1476,7 +1571,9 @@ class _HomeScreenState extends State<HomeScreen> {
             )),
           ),
           title: Text(
-            entry.diseaseName ?? 'No disease matched',
+            entry.isHealthy
+                ? '${entry.plantName} — Healthy 🌱'
+                : (entry.diseaseName ?? 'No disease matched'),
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
           ),
           subtitle: Padding(
@@ -1492,13 +1589,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   runSpacing: 8,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Chip(
-                      label: Text(
-                        '${(entry.confidence * 100).toStringAsFixed(1)}%',
-                      ),
-                      visualDensity: VisualDensity.compact,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
+                    _ConfidenceChip(confidence: entry.confidence),
                     Text(
                       DateFormat(
                         'dd MMM yyyy, hh:mm a',
@@ -1516,28 +1607,59 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             const Divider(height: 1),
             const SizedBox(height: 12),
+            if (entry.gradcamBytes != null) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildPreviewTile(
+                      title: 'Original',
+                      fullscreenBytes: entry.imageBytes,
+                      child: entry.imageBytes != null
+                          ? Image.memory(entry.imageBytes!, fit: BoxFit.cover)
+                          : const Icon(Icons.image_outlined),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _buildPreviewTile(
+                      title: 'Grad-CAM',
+                      fullscreenBytes: entry.gradcamBytes,
+                      child: Image.memory(entry.gradcamBytes!, fit: BoxFit.cover),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
             _buildDetailGroup(
               title: 'Details',
               children: [
-                _DetailLine(
-                  label: 'Cause',
-                  value: entry.diseaseCause ?? 'Not available yet',
-                ),
-                const SizedBox(height: 10),
-                _DetailLine(
-                  label: 'Description',
-                  value: entry.diseaseDescription ?? 'Not available yet',
-                ),
-                const SizedBox(height: 10),
-                _DetailLine(
-                  label: 'Remedy',
-                  value: entry.diseaseRemedy ?? 'Not available yet',
-                ),
-                const SizedBox(height: 10),
-                _DetailLine(
-                  label: 'Prevention',
-                  value: entry.diseasePrevention ?? 'Not available yet',
-                ),
+                if (entry.isHealthy) ...[
+                  const _DetailLine(
+                    label: 'Status',
+                    value: '✅ No disease detected — plant looks healthy!',
+                  ),
+                ] else ...[
+                  _DetailLine(
+                    label: 'Cause',
+                    value: entry.diseaseCause ?? 'Not available yet',
+                  ),
+                  const SizedBox(height: 10),
+                  _DetailLine(
+                    label: 'Description',
+                    value: entry.diseaseDescription ?? 'Not available yet',
+                  ),
+                  const SizedBox(height: 10),
+                  _DetailLine(
+                    label: 'Remedy',
+                    value: entry.diseaseRemedy ?? 'Not available yet',
+                  ),
+                  const SizedBox(height: 10),
+                  _DetailLine(
+                    label: 'Prevention',
+                    value: entry.diseasePrevention ?? 'Not available yet',
+                  ),
+                ],
                 if (isLowConfidence && entry.message != null) ...[
                   const SizedBox(height: 10),
                   _DetailLine(
@@ -1591,47 +1713,110 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildPreviewTile({required String title, required Widget child}) {
+  Widget _buildPreviewTile({required String title, required Widget child, Uint8List? fullscreenBytes}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      height: 190,
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.gray800 : AppColors.green50,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: isDark ? AppColors.gray700 : AppColors.green100),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            child,
-            DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withValues(alpha: 0.04),
-                    Colors.black.withValues(alpha: 0.24),
+
+    void openFullscreen() {
+      if (fullscreenBytes == null) return;
+      showDialog<void>(
+        context: context,
+        barrierColor: Colors.black87,
+        builder: (ctx) => GestureDetector(
+          onTap: () => Navigator.pop(ctx),
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            body: SafeArea(
+              child: Stack(
+                children: [
+                  Center(
+                    child: InteractiveViewer(
+                      minScale: 0.5,
+                      maxScale: 4.0,
+                      child: Image.memory(fullscreenBytes, fit: BoxFit.contain),
+                    ),
+                  ),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 16,
+                    left: 0,
+                    right: 0,
+                    child: Text(
+                      title,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        shadows: [Shadow(color: Colors.black, blurRadius: 8)],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: fullscreenBytes != null ? openFullscreen : null,
+      child: Container(
+        height: 190,
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.gray800 : AppColors.green50,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: isDark ? AppColors.gray700 : AppColors.green100),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              child,
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.04),
+                      Colors.black.withValues(alpha: 0.24),
+                    ],
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 12,
+                right: 12,
+                bottom: 12,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      title,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (fullscreenBytes != null) ...const [
+                      SizedBox(width: 4),
+                      Icon(Icons.fullscreen, color: Colors.white, size: 16),
+                    ],
                   ],
                 ),
               ),
-            ),
-            Positioned(
-              left: 12,
-              right: 12,
-              bottom: 12,
-              child: Text(
-                title,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1691,6 +1876,42 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Color-coded confidence badge for history cards.
+class _ConfidenceChip extends StatelessWidget {
+  const _ConfidenceChip({required this.confidence});
+  final double confidence;
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = confidence * 100;
+    final Color bg;
+    final Color fg;
+    if (pct >= 70) {
+      bg = const Color(0xFFE8F5E9); fg = const Color(0xFF2E7D32);
+    } else if (pct >= 45) {
+      bg = const Color(0xFFFFF8E1); fg = const Color(0xFFE65100);
+    } else {
+      bg = const Color(0xFFFFEBEE); fg = const Color(0xFFC62828);
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: fg.withValues(alpha: 0.25)),
+      ),
+      child: Text(
+        '${pct.toStringAsFixed(1)}%',
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: fg,
         ),
       ),
     );

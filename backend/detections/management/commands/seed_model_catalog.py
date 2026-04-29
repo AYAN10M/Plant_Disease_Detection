@@ -14,60 +14,78 @@ from plants.models import Plant
 
 PLANT_METADATA = {
     'Apple': {'scientific_name': 'Malus domestica'},
-    'Blueberry': {'scientific_name': 'Vaccinium corymbosum'},
-    'Cherry (including sour)': {'scientific_name': 'Prunus cerasus'},
-    'Corn (maize)': {'scientific_name': 'Zea mays'},
+    'Cherry': {'scientific_name': 'Prunus avium'},
+    'Corn': {'scientific_name': 'Zea mays'},
     'Grape': {'scientific_name': 'Vitis vinifera'},
-    'Orange': {'scientific_name': 'Citrus sinensis'},
     'Peach': {'scientific_name': 'Prunus persica'},
-    'Pepper, bell': {'scientific_name': 'Capsicum annuum'},
+    'Pepper Bell': {'scientific_name': 'Capsicum annuum'},
     'Potato': {'scientific_name': 'Solanum tuberosum'},
-    'Raspberry': {'scientific_name': 'Rubus idaeus'},
-    'Soybean': {'scientific_name': 'Glycine max'},
-    'Squash': {'scientific_name': 'Cucurbita pepo'},
+    'Rice': {'scientific_name': 'Oryza sativa'},
     'Strawberry': {'scientific_name': 'Fragaria x ananassa'},
     'Tomato': {'scientific_name': 'Solanum lycopersicum'},
 }
 
 
-def _split_class_name(class_name):
+# Known plant prefixes, longest first so "Pepper Bell" matches before "Pepper"
+_PLANT_PREFIXES = [
+    'Apple',
+    'Cherry',
+    'Corn',
+    'Grape',
+    'Peach',
+    'Pepper_bell',
+    'Potato',
+    'Rice',
+    'Strawberry',
+    'Tomato',
+]
+
+
+def _split_class_name(class_name: str):
+    """
+    Split a class name into (plant_token, disease_token).
+
+    New format (single _): "Apple_Apple_scab"          → ("Apple",       "Apple scab")
+                           "Pepper_bell_Bacterial_spot" → ("Pepper bell", "Bacterial spot")
+    Old format (triple _): "Apple___Apple_scab"         → ("Apple",       "Apple scab")
+    """
+    # Old ___-separated format
     if '___' in class_name:
-        return class_name.split('___', 1)
+        plant, disease = class_name.split('___', 1)
+        return plant.replace('_', ' ').strip(), disease.replace('_', ' ').strip()
 
-    if '__' in class_name:
-        return class_name.split('__', 1)
+    # New single-_ format — find the longest known plant prefix
+    for prefix in sorted(_PLANT_PREFIXES, key=len, reverse=True):
+        if class_name.startswith(prefix + '_'):
+            plant = prefix.replace('_', ' ')
+            disease = class_name[len(prefix) + 1:]     # skip the separating _
+            return plant, disease.replace('_', ' ').strip()
 
-    return class_name, class_name
-
-
-def _humanize_token(token):
-    token = token.replace('_', ' ').strip()
-    token = re.sub(r'\s+', ' ', token)
-    return token.title()
+    # Fallback: first token is plant
+    parts = class_name.split('_', 1)
+    return parts[0], (parts[1].replace('_', ' ') if len(parts) > 1 else parts[0])
 
 
 def _plant_display_name(class_name):
-    plant_token, _ = _split_class_name(class_name)
-    return _humanize_token(plant_token)
+    plant, _ = _split_class_name(class_name)
+    # Title-case each word
+    return ' '.join(w.capitalize() for w in plant.split())
 
 
 def _disease_display_name(class_name):
-    _, disease_token = _split_class_name(class_name)
-    return _humanize_token(disease_token)
+    _, disease = _split_class_name(class_name)
+    return ' '.join(w.capitalize() if w.lower() not in ('Two-spotted',) else w
+                    for w in disease.split())
 
 
 def _severity_for(class_name):
     lowered = class_name.lower()
-
     if 'healthy' in lowered:
         return 'mild'
-
-    if any(keyword in lowered for keyword in ('blight', 'rot', 'rust', 'mosaic', 'curl')):
+    if any(k in lowered for k in ('blight', 'rot', 'rust', 'mosaic', 'curl', 'tungro')):
         return 'severe'
-
-    if any(keyword in lowered for keyword in ('spot', 'mildew', 'scab', 'mite', 'blight')):
+    if any(k in lowered for k in ('spot', 'mildew', 'scab', 'mite')):
         return 'moderate'
-
     return 'moderate'
 
 
@@ -83,6 +101,46 @@ def _disease_traits(class_name):
             'remedy': 'No treatment is required. Continue routine monitoring and balanced care.',
             'prevention': 'Keep watering and nutrition consistent so the plant stays resilient.',
             'affected_parts': 'leaf',
+        }
+
+    if 'tungro' in lowered:
+        return {
+            'description': 'Rice Tungro is one of the most damaging viral diseases of rice worldwide.',
+            'cause': 'Caused by Rice Tungro Bacilliform Virus (RTBV) and Rice Tungro Spherical Virus (RTSV), spread by the green leafhopper.',
+            'symptoms': 'Yellow-orange leaf discoloration, stunted growth, reduced tillering, and poor grain filling.',
+            'remedy': 'Use resistant varieties, control leafhopper vectors with appropriate insecticides, and remove infected plants.',
+            'prevention': 'Plant resistant cultivars, synchronize planting dates to break disease cycles, and monitor leafhopper populations.',
+            'affected_parts': 'leaf, stem, grain',
+        }
+
+    if 'bacterialblight' in lowered.replace(' ', ''):
+        return {
+            'description': 'Rice Bacterial Blight is a major rice disease caused by Xanthomonas oryzae pv. oryzae.',
+            'cause': 'Bacterial infection that spreads through water, wounds, and stomata. Favored by heavy rains and high nitrogen.',
+            'symptoms': 'Water-soaked lesions on leaf margins that turn yellow then white, "kresek" wilting of young plants.',
+            'remedy': 'Use copper-based bactericides, improve drainage, and avoid excess nitrogen fertilization.',
+            'prevention': 'Use resistant varieties, treat seeds with hot water, maintain field sanitation.',
+            'affected_parts': 'leaf, stem',
+        }
+
+    if 'blast' in lowered and 'rice' in lowered:
+        return {
+            'description': 'Rice Blast (Pyricularia oryzae) is the most devastating fungal disease of rice.',
+            'cause': 'Caused by the fungus Magnaporthe oryzae; spreads through spores in humid, cloudy weather.',
+            'symptoms': 'Diamond-shaped lesions with gray centers and brown borders on leaves; neck and node blast visible.',
+            'remedy': 'Apply triazole or strobilurin fungicides; remove infected debris and improve nitrogen management.',
+            'prevention': 'Plant resistant varieties, avoid excess nitrogen, ensure proper water management.',
+            'affected_parts': 'leaf, stem, neck, panicle',
+        }
+
+    if 'brownspot' in lowered.replace(' ', ''):
+        return {
+            'description': 'Rice Brown Spot is a fungal disease caused by Cochliobolus miyabeanus.',
+            'cause': 'Fungal infection favored by low soil fertility (especially potassium and silicon deficiency) and high humidity.',
+            'symptoms': 'Oval to circular brown lesions with a yellow halo on leaves; infected grains show dark spots.',
+            'remedy': 'Apply fungicides (iprodione, propiconazole); correct soil nutrient deficiencies.',
+            'prevention': 'Use healthy seed, balance soil nutrients, apply silicon fertilizer.',
+            'affected_parts': 'leaf, grain',
         }
 
     if 'blight' in lowered:
@@ -165,6 +223,26 @@ def _disease_traits(class_name):
             'affected_parts': 'leaf',
         }
 
+    if 'scab' in lowered:
+        return {
+            'description': f'{disease_label} causes rough, scabby lesions on leaves, fruit, or stems.',
+            'cause': 'Fungal infection (often Venturia spp.) that thrives in cool, wet spring weather.',
+            'symptoms': 'Olive-green to brown scab-like lesions on leaves and fruit; defoliation in severe cases.',
+            'remedy': 'Apply protective fungicides (captan, myclobutanil) at key phenological stages.',
+            'prevention': 'Rake and destroy fallen leaves, prune for airflow, use resistant cultivars.',
+            'affected_parts': 'leaf, fruit',
+        }
+
+    if 'esca' in lowered or 'measles' in lowered:
+        return {
+            'description': f'{disease_label} is a wood-decay fungal complex affecting grapevines.',
+            'cause': 'Multiple wood-rotting fungi (Phaeomoniella, Phaeoacremonium, Fomitiporia) invade pruning wounds.',
+            'symptoms': 'Tiger-stripe leaf discoloration, apoplexy (sudden vine death), and internal wood streaking.',
+            'remedy': 'No effective cure; remove severely affected vines. Protect pruning wounds with fungicide paste.',
+            'prevention': 'Prune during dry weather, seal large wounds, and use clean equipment.',
+            'affected_parts': 'leaf, cane, wood',
+        }
+
     return {
         'description': f'{disease_label} is one of the labels used by the trained model for this crop.',
         'cause': 'This entry keeps the API catalog aligned with the classifier output.',
@@ -219,7 +297,7 @@ class Command(BaseCommand):
                 scientific_name=metadata.get('scientific_name', ''),
                 family=metadata.get('family', ''),
                 description=(
-                    f'{plant_name} records are synchronized with the trained Midori model ' 
+                    f'{plant_name} records are synchronized with the trained Midori model '
                     'so each prediction can resolve to a clean plant catalog entry.'
                 ),
                 origin=metadata.get('origin', ''),
@@ -250,6 +328,6 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                f'Reset {len(plants_by_name)} plants, {diseases_created} diseases, and all detection rows.'
+                f'Seeded {len(plants_by_name)} plants and {diseases_created} diseases from {len(CLASS_NAMES)} model classes.'
             )
         )

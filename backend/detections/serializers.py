@@ -56,6 +56,7 @@ class DetectionResultSerializer(serializers.ModelSerializer):
     plant_name      = serializers.SerializerMethodField()
     uploaded_image  = serializers.SerializerMethodField()
     gradcam_image   = serializers.SerializerMethodField()
+    is_healthy      = serializers.SerializerMethodField()
 
     class Meta:
         model  = Detection
@@ -63,7 +64,7 @@ class DetectionResultSerializer(serializers.ModelSerializer):
             'id', 'plant_name', 'disease_detail',
             'uploaded_image', 'gradcam_image',
             'confidence', 'confidence_pct',
-            'status', 'created_at',
+            'status', 'is_healthy', 'created_at',
         ]
 
     def get_confidence_pct(self, obj):
@@ -71,6 +72,9 @@ class DetectionResultSerializer(serializers.ModelSerializer):
 
     def get_plant_name(self, obj):
         return obj.plant.name if obj.plant is not None else None
+
+    def get_is_healthy(self, obj):
+        return obj.status == 'healthy'
 
     def _absolute_url(self, field_value):
         """Build an absolute URL for an ImageField value.

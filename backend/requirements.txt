@@ -1,7 +1,90 @@
-django
-djangorestframework
-django-cors-headers
-pillow
-python-dotenv
-psycopg2-binary
+# =============================================================================
+# Plant Disease Detection - Consolidated Requirements
+# =============================================================================
+# Install into the backend venv:
+#   backend\venv\Scripts\pip install -r backend\requirements.txt
+# =============================================================================
+
+
+# ── Django & REST ──────────────────────────────────────────────────────────────
+Django==5.2.13
+djangorestframework==3.17.1
+djangorestframework_simplejwt==5.5.1
+django-cors-headers==4.9.0
+
+# ── Django runtime dependencies ────────────────────────────────────────────────
+asgiref==3.11.1
+sqlparse==0.5.5
+tzdata==2026.1
+PyJWT==2.12.1
+
+# ── Database ───────────────────────────────────────────────────────────────────
+psycopg2-binary==2.9.12
+
+# ── Machine Learning ───────────────────────────────────────────────────────────
 tensorflow==2.10.0
+keras==2.10.0
+Keras-Preprocessing==1.1.2
+numpy==1.23.5
+h5py==3.16.0
+
+# ── Image processing ───────────────────────────────────────────────────────────
+pillow==12.2.0
+
+# ── Visualisation ──────────────────────────────────────────────────────────────
+matplotlib==3.10.9
+
+# ── Jupyter / Notebooks ────────────────────────────────────────────────────────
+jupyter==1.1.1
+jupyterlab==4.5.6
+ipykernel==7.2.0
+ipython==8.39.0
+ipywidgets==8.1.8
+notebook==7.5.5
+nbformat==5.10.4
+nbconvert==7.17.1
+nbclient==0.10.4
+
+# ── Environment & config ───────────────────────────────────────────────────────
+python-dotenv==1.2.2
+
+# ── HTTP / Networking ──────────────────────────────────────────────────────────
+requests==2.33.1
+
+# ── TensorFlow transitive dependencies (pinned for TF 2.10.0 compatibility) ───
+absl-py==2.4.0
+astunparse==1.6.3
+flatbuffers==25.12.19
+gast==0.4.0
+google-auth==2.49.2
+google-auth-oauthlib==0.4.6
+google-pasta==0.2.0
+grpcio==1.80.0
+libclang==18.1.1
+opt_einsum==3.4.0
+protobuf==3.19.6
+tensorboard==2.10.1
+tensorboard-data-server==0.6.1
+tensorboard-plugin-wit==1.8.1
+tensorflow-estimator==2.10.0
+tensorflow-io-gcs-filesystem==0.31.0
+termcolor==3.3.0
+wrapt==2.1.2
+
+# ── Other transitive dependencies ──────────────────────────────────────────────
+certifi==2026.4.22
+charset-normalizer==3.4.7
+idna==3.13
+urllib3==2.6.3
+oauthlib==3.3.1
+requests-oauthlib==2.0.0
+cryptography==47.0.0
+cffi==2.0.0
+pycparser==3.0
+pyasn1==0.6.3
+pyasn1_modules==0.4.2
+six==1.17.0
+packaging==26.2
+typing_extensions==4.15.0
+Werkzeug==3.1.8
+MarkupSafe==3.0.3

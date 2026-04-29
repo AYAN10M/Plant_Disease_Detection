@@ -8,6 +8,7 @@ class Detection(models.Model):
     STATUS_CHOICES = [
         ('processing',     'Processing'),
         ('success',        'Success'),
+        ('healthy',        'Healthy'),
         ('low_confidence', 'Low Confidence'),
         ('not_a_plant',    'Not a Plant'),
         ('failed',         'Failed'),
