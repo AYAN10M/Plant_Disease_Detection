@@ -34,7 +34,12 @@ class DetectionApiResponse {
       status: json['status'] as String? ?? 'success',
       message: json['message'] as String?,
       data: json['data'] is Map<String, dynamic>
-          ? DetectionResult.fromJson(json['data'] as Map<String, dynamic>)
+          ? DetectionResult.fromJson(
+              json['data'] as Map<String, dynamic>,
+              // Alternatives live at the TOP LEVEL of the response, not inside data.
+              topAlternatives: (json['alternatives'] as List<dynamic>? ?? [])
+                  .cast<Map<String, dynamic>>(),
+            )
           : null,
     );
   }
@@ -75,7 +80,10 @@ class DetectionResult {
     this.topAlternatives = const [],
   });
 
-  factory DetectionResult.fromJson(Map<String, dynamic> json) {
+  factory DetectionResult.fromJson(
+    Map<String, dynamic> json, {
+    List<Map<String, dynamic>> topAlternatives = const [],
+  }) {
     final diseaseDetail = json['disease_detail'] as Map<String, dynamic>?;
     final statusStr = json['status'] as String? ?? 'success';
     return DetectionResult(
@@ -93,8 +101,7 @@ class DetectionResult {
       status: statusStr,
       isHealthy: (json['is_healthy'] as bool?) ?? (statusStr == 'healthy'),
       createdAt: DateTime.tryParse(json['created_at'] as String? ?? ''),
-      topAlternatives: (json['alternatives'] as List<dynamic>? ?? [])
-          .cast<Map<String, dynamic>>(),
+      topAlternatives: topAlternatives,
     );
   }
 }

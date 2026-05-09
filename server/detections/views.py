@@ -153,4 +153,4 @@ class DetectView(APIView):
             "status":       "success",
             "data":         result.data,
             "alternatives": top_k,
-        }, status=status.HTTP_201_CREATED)
+        }, status=status.HTTP_200_OK)

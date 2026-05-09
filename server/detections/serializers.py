@@ -71,7 +71,12 @@ class DetectionResultSerializer(serializers.ModelSerializer):
         return f"{round(obj.confidence * 100, 1)}%"
 
     def get_plant_name(self, obj):
-        return obj.plant.name if obj.plant is not None else None
+        if obj.plant is not None:
+            return obj.plant.name
+        # Fall back to deriving from the linked disease's plant
+        if obj.disease is not None and obj.disease.plant is not None:
+            return obj.disease.plant.name
+        return None
 
     def get_is_healthy(self, obj):
         return obj.status == 'healthy'

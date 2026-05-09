@@ -580,7 +580,11 @@ class _ScanScreenState extends State<ScanScreen> {
 
   Widget _buildScanTab() {
     return RefreshIndicator(
-      onRefresh: _loadHistory,
+      onRefresh: () async {
+        // Refresh the server health probe on pull-to-refresh in scan tab
+        final ready = await _apiClient.checkServerHealth();
+        if (mounted) setState(() => _serverReady = ready);
+      },
       child: LayoutBuilder(
         builder: (context, constraints) => Center(
           child: ConstrainedBox(
@@ -803,7 +807,7 @@ class _ScanScreenState extends State<ScanScreen> {
     }
 
     final isHealthy  = result.isHealthy;
-    final isLowConf  = result.confidence < 0.60;
+    final isLowConf  = result.confidence < 0.60;  // mirrors backend CONFIDENCE_THRESHOLD
     final confidenceColor = result.confidence >= 0.80
         ? const Color(0xFF2E7D32)   // deep green
         : result.confidence >= 0.60
@@ -884,8 +888,8 @@ class _ScanScreenState extends State<ScanScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: const [
+                    const Row(
+                      children: [
                         Icon(
                           Icons.warning_amber_rounded,
                           color: Color(0xFFD84315),
@@ -1267,7 +1271,33 @@ class _ScanScreenState extends State<ScanScreen> {
                       ),
                     ),
                     TextButton(
-                      onPressed: _history.isEmpty ? null : _clearHistory,
+                      onPressed: _history.isEmpty
+                          ? null
+                          : () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text('Clear all history?'),
+                                  content: const Text(
+                                    'This will permanently delete all saved scans from this device. This cannot be undone.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx, false),
+                                      child: const Text('Cancel'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx, true),
+                                      child: const Text(
+                                        'Clear all',
+                                        style: TextStyle(color: Color(0xFFD32F2F)),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirm == true) await _clearHistory();
+                            },
                       child: const Text('Clear all'),
                     ),
                   ],
@@ -1582,7 +1612,13 @@ class _ScanScreenState extends State<ScanScreen> {
       });
     } catch (_) {
       if (!mounted) return;
-      _setScanFeedback('Could not delete this entry. Please try again.');
+      // Use SnackBar — visible from any tab, unlike _setScanFeedback.
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not delete this entry. Please try again.'),
+          duration: Duration(seconds: 3),
+        ),
+      );
     }
   }
 
@@ -1687,7 +1723,7 @@ class _ScanScreenState extends State<ScanScreen> {
                       ).format(entry.createdAt),
                       style: TextStyle(
                         fontSize: 13,
-                        //color: AppColors.textSecondary,
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                       ),
                     ),
                   ],
@@ -1980,22 +2016,27 @@ class _ConfidenceChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final pct = confidence * 100;
+
     final Color bg;
     final Color fg;
     if (pct >= 70) {
-      bg = const Color(0xFFE8F5E9); fg = const Color(0xFF2E7D32);
+      bg = isDark ? const Color(0xFF1B3A1E) : const Color(0xFFE8F5E9);
+      fg = isDark ? const Color(0xFF66BB6A) : const Color(0xFF2E7D32);
     } else if (pct >= 45) {
-      bg = const Color(0xFFFFF8E1); fg = const Color(0xFFE65100);
+      bg = isDark ? const Color(0xFF3A2800) : const Color(0xFFFFF8E1);
+      fg = isDark ? const Color(0xFFFFCA28) : const Color(0xFFE65100);
     } else {
-      bg = const Color(0xFFFFEBEE); fg = const Color(0xFFC62828);
+      bg = isDark ? const Color(0xFF3A0E0E) : const Color(0xFFFFEBEE);
+      fg = isDark ? const Color(0xFFEF5350) : const Color(0xFFC62828);
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: fg.withValues(alpha: 0.25)),
+        border: Border.all(color: fg.withValues(alpha: 0.30)),
       ),
       child: Text(
         '${pct.toStringAsFixed(1)}%',

@@ -7,8 +7,8 @@ Pipeline
 1. Green-channel pre-filter  — fast PIL-based check; rejects obviously
    non-plant images (sky, skin, solid objects …).
 
-2. TTA inference — 5 crops (centre + 4 corners) averaged for robustness
-   against real-world backgrounds / lighting that differ from lab training.
+2. Weighted TTA inference — 7 crops (full image + 2 centred + 4 corners) with
+   centre-biased weights averaged for robustness against real-world backgrounds.
 
 3. Not-a-plant floor — if top-1 probability < NOT_A_PLANT_THRESHOLD the
    model is uncertain → is_plant=False.
