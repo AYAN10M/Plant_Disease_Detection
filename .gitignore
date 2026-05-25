@@ -1,92 +1,57 @@
-# ============================================================
-#  Midori — Plant Disease Detection  |  Root .gitignore
-# ============================================================
+# =============================================================================
+# Midori — Root .gitignore
+# =============================================================================
 
-# ── Secrets & environment ────────────────────────────────────
-.env
-*.env
-.env.*
-!.env.example
-
-# ── Python ───────────────────────────────────────────────────
+# ── Python / Django ───────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
-*$py.class
 *.pyo
 *.pyd
 .Python
-
-# Virtual environments
-venv/
-.venv/
-env/
-ENV/
-backend/venv/
-backend/.venv/
-
-# Distribution / packaging
+*.egg-info/
 dist/
 build/
-*.egg-info/
+.eggs/
 *.egg
 
-# Jupyter / IPython
-.ipynb_checkpoints/
-*.ipynb
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
 
 # Django
 *.log
 local_settings.py
+server/.env
+server/media/
+server/static/
 db.sqlite3
-db.sqlite3-journal
-media/
-staticfiles/
-static_root/
 
-# ── ML model weights (large binary files) ────────────────────
-*.h5
-*.keras
-*.pb
-*.tflite
-*.pt
-*.pth
-*.ckpt
-*.pkl
-*.joblib
-saved_model/
+# ── Machine Learning ──────────────────────────────────────────────────────────
+# Extracted model files (large — regenerate with  python scripts/setup_models.py)
+server/ml/models/
+# Uncomment the line below to also ignore model zips (if using cloud storage):
+# server/ml/weights/
 
-# ── Flutter / Dart ───────────────────────────────────────────
-**/doc/api/
-**/ios/Flutter/.last_build_id
-.dart_tool/
-.flutter-plugins
-.flutter-plugins-dependencies
-.pub-cache/
-.pub/
-/frontend/build/
-/frontend/coverage/
+# ── Flutter / Dart ────────────────────────────────────────────────────────────
+mobile/.dart_tool/
+mobile/.packages
+mobile/build/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/pubspec.lock
 
-# Symbolication & obfuscation
-app.*.symbols
-app.*.map.json
+# ── OS artifacts ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
 
-# Android build artefacts
-/frontend/android/app/debug/
-/frontend/android/app/profile/
-/frontend/android/app/release/
-
-# ── IDE / editor ─────────────────────────────────────────────
+# ── IDE ───────────────────────────────────────────────────────────────────────
 .idea/
 .vscode/
 *.iml
-*.ipr
-*.iws
-*.swp
-*.swo
-.DS_Store
-Thumbs.db
 
-# ── OS ───────────────────────────────────────────────────────
-.DS_Store
-ehthumbs.db
-Desktop.ini
+# ── Jupyter ───────────────────────────────────────────────────────────────────
+docs/notebooks/.ipynb_checkpoints/

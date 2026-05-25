@@ -1,47 +1,38 @@
 # =============================================================================
 # Midori — Machine Learning dependencies
 # Install: pip install -r requirements/ml.txt
-# (installs base.txt first automatically via -r)
+# (automatically installs base.txt via -r)
+#
+# Python version: 3.13.0  (installed)
+# TensorFlow:     2.21.0  (latest release with Python 3.13 wheels)
+#
+# Note on Keras:
+#   TF 2.16+ ships with Keras 3 by default.
+#   The engine imports Keras via  tf.keras  which resolves to Keras 3.
+#   If you need the legacy Keras 2 API set  TF_USE_LEGACY_KERAS=1
+#   and run:  pip install tf_keras
 # =============================================================================
 
 -r base.txt
 
-# ── TensorFlow & Keras ─────────────────────────────────────────────────────────
-tensorflow==2.10.0
-keras==2.10.0
-Keras-Preprocessing==1.1.2
-numpy==1.23.5
-h5py==3.16.0
+# ── TensorFlow (includes Keras 3) ─────────────────────────────────────────────
+tensorflow==2.21.0
+numpy>=1.26.4
 
-# ── TF transitive dependencies (pinned for TF 2.10.0 compatibility) ────────────
-absl-py==2.4.0
-astunparse==1.6.3
-flatbuffers==25.12.19
-gast==0.4.0
-google-auth==2.49.2
-google-auth-oauthlib==0.4.6
-google-pasta==0.2.0
-grpcio==1.80.0
-libclang==18.1.1
-opt_einsum==3.4.0
-protobuf==3.19.6
-tensorboard==2.10.1
-tensorboard-data-server==0.6.1
-tensorboard-plugin-wit==1.8.1
-tensorflow-estimator==2.10.0
-tensorflow-io-gcs-filesystem==0.31.0
-termcolor==3.3.0
-wrapt==2.1.2
-
-# ── Auth & misc transitive ─────────────────────────────────────────────────────
-oauthlib==3.3.1
-requests-oauthlib==2.0.0
-cryptography==47.0.0
-cffi==2.0.0
-pycparser==3.0
-pyasn1==0.6.3
-pyasn1_modules==0.4.2
-six==1.17.0
-packaging==26.2
-typing_extensions==4.15.0
-PyJWT==2.12.1
+# ── TF transitive dependencies (key ones pinned) ─────────────────────────────
+absl-py>=1.4.0
+astunparse>=1.6.3
+flatbuffers>=23.5.26
+gast>=0.4.0
+google-auth>=2.22.0
+google-auth-oauthlib>=1.0.0
+google-pasta>=0.2.0
+grpcio>=1.56.2
+h5py>=3.9.0
+opt-einsum>=3.3.0
+packaging>=23.1
+protobuf>=4.23.4
+tensorboard>=2.13.0
+termcolor>=2.3.0
+typing-extensions>=4.7.1
+wrapt>=1.15.0

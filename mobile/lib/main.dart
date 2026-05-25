@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/app_theme.dart';
 import 'features/scan/screens/scan_screen.dart';
 
-/// App-wide theme mode notifier — read and written by ScanScreen's AppBar toggle.
 final themeModeNotifier = ValueNotifier<ThemeMode>(ThemeMode.light);
 
 void main() {

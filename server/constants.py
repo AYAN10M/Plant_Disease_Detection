@@ -1,15 +1,19 @@
 """
-Midori — Application-wide constants.
-Import these instead of scattering magic numbers across views.
+Midori — Application-wide constants
+=====================================
+Import with:
+    from constants import PLANT_CONF_THRESHOLD, DISEASE_CONF_THRESHOLD, ...
 """
 
-# ── Detection ────────────────────────────────────────────────────────────────
-CONFIDENCE_THRESHOLD  = 0.60          # below this → prompt user to retake photo
-NOT_A_PLANT_THRESHOLD = 0.20          # below this (raw softmax prob) → not a plant
-                                       # Keep in sync with engine.NOT_A_PLANT_THRESHOLD
+# ── Detection thresholds ──────────────────────────────────────────────────────
 
-# Substring in class label that indicates a healthy plant (PlantVillage naming)
-IS_HEALTHY_KEYWORD = 'healthy'
+PLANT_CONF_THRESHOLD   = 40.0   # Stage-1 : below this % → status = not_recognized
+DISEASE_CONF_THRESHOLD = 40.0   # Stage-2 : below this % → status = low_confidence
+
+# Legacy alias used in a few older scripts
+CONFIDENCE_THRESHOLD = DISEASE_CONF_THRESHOLD / 100.0  # 0.40 (0–1 scale)
+
+# ── User-facing messages ──────────────────────────────────────────────────────
 
 HEALTHY_MESSAGE = (
     "Your plant looks healthy! No signs of disease were detected. "
@@ -17,13 +21,20 @@ HEALTHY_MESSAGE = (
 )
 
 LOW_CONFIDENCE_MESSAGE = (
-    "Confidence is too low. Please retake the photo in better lighting "
-    "and make sure the affected part of the plant is clearly visible."
+    "Disease detection confidence is too low for a reliable diagnosis. "
+    "Please retake the photo in good lighting with the affected leaf filling the frame."
 )
 
-NOT_A_PLANT_MESSAGE = (
-    "The image doesn't appear to be a plant leaf. "
-    "Please take a clear, close-up photo of a plant leaf and try again."
+NOT_RECOGNIZED_MESSAGE = (
+    "Could not confidently identify the plant. "
+    "Please take a clear, close-up photo of the leaf against a plain background."
 )
 
-MAX_DETECTION_HISTORY = 50           # max records kept per user
+NO_MODEL_MESSAGE = (
+    "The plant was identified but no disease model is available for it yet. "
+    "Supported plants for disease detection: Apple, Potato, Grape, Pepper."
+)
+
+# ── Misc ──────────────────────────────────────────────────────────────────────
+
+MAX_DETECTION_HISTORY = 50   # Flutter-side history cap (matches history_service.dart)

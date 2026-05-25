@@ -1,7 +1,7 @@
 """
 Midori — Base Django settings shared across all environments.
-Django project package is now `config` (was `core`).
 """
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
 import os
@@ -9,6 +9,12 @@ import os
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent  # server/
+
+# ── Add server/apps/ to sys.path so apps can be imported as top-level packages
+# e.g.  from detections.models import Detection
+APPS_DIR = BASE_DIR / "apps"
+if str(APPS_DIR) not in sys.path:
+    sys.path.insert(0, str(APPS_DIR))
 
 SECRET_KEY    = os.getenv("SECRET_KEY", "change-me-in-production")
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "*").split(",")
@@ -25,7 +31,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "corsheaders",
 
-    # Midori apps
+    # Midori apps  (resolved via sys.path → server/apps/)
     "plants",
     "diseases",
     "detections",
@@ -86,16 +92,26 @@ REST_FRAMEWORK = {
 }
 
 # ── Upload limits ──────────────────────────────────────────────────────────────
-# 15 MB server guard (frontend caps at 10 MB; headroom for HEIC originals).
+# 15 MB server guard (Flutter caps at 10 MB; headroom for HEIC originals).
 DATA_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024
 
 # ── Media & Static ─────────────────────────────────────────────────────────────
 MEDIA_URL  = "/media/"
-MEDIA_ROOT = os.path.join(BASE_DIR, "media")
+MEDIA_ROOT = os.getenv("MEDIA_ROOT", str(BASE_DIR / "media"))
 
-STATIC_URL = "static/"
+STATIC_URL  = "/static/"
+STATIC_ROOT = str(BASE_DIR / "static")
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# ── ML model directory ─────────────────────────────────────────────────────────
+# server/ml/models/  (engine.py reads this via settings or its own constant)
+ML_MODELS_DIR = os.getenv("ML_MODELS_DIR", str(BASE_DIR / "ml" / "models"))
+
+# ── CORS ───────────────────────────────────────────────────────────────────────
+CORS_ALLOW_ALL_ORIGINS  = True    # dev default; restrict in production.py
+CORS_ALLOW_CREDENTIALS  = False
 
 # ── Auth validators ────────────────────────────────────────────────────────────
 AUTH_PASSWORD_VALIDATORS = [
@@ -134,6 +150,16 @@ LOGGING = {
         "detections": {
             "handlers": ["console"],
             "level": "INFO",
+            "propagate": False,
+        },
+        "plants": {
+            "handlers": ["console"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+        "diseases": {
+            "handlers": ["console"],
+            "level": "WARNING",
             "propagate": False,
         },
     },

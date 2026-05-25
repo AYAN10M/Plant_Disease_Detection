@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plant Disease Detection — Team Onboarding Guide</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --green:     #1D9E75;
+    --green-l:   #E8F5E9;
+    --green-d:   #0F6E56;
+    --blue:      #1565C0;
+    --blue-l:    #E3F2FD;
+    --amber:     #E65100;
+    --amber-l:   #FFF3E0;
+    --red:       #C62828;
+    --red-l:     #FFEBEE;
+    --gray:      #37474F;
+    --gray-l:    #F5F5F5;
+    --gray-m:    #90A4AE;
+    --border:    #E0E0E0;
+    --text:      #212121;
+    --text-m:    #546E7A;
+    --white:     #FFFFFF;
+    --shadow:    0 1px 4px rgba(0,0,0,0.08);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 15px;
+    line-height: 1.75;
+    color: var(--text);
+    background: #FAFAFA;
+  }
+
+  /* ── Cover ── */
+  .cover {
+    background: linear-gradient(135deg, #0A3D2E 0%, #1D9E75 60%, #0F6E56 100%);
+    color: white;
+    padding: 80px 60px 70px;
+    position: relative;
+    overflow: hidden;
+  }
+  .cover::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 320px; height: 320px;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 50%;
+  }
+  .cover::after {
+    content: '';
+    position: absolute;
+    bottom: -80px; left: -40px;
+    width: 260px; height: 260px;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 50%;
+  }
+  .cover-badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 20px;
+    padding: 4px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+  .cover h1 {
+    font-size: 38px;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-bottom: 10px;
+    max-width: 600px;
+  }
+  .cover .sub {
+    font-size: 17px;
+    opacity: .75;
+    margin-bottom: 36px;
+    max-width: 500px;
+  }
+  .cover-meta {
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+    font-size: 13px;
+    opacity: .7;
+  }
+  .cover-meta span { display: flex; align-items: center; gap: 6px; }
+
+  /* ── Layout ── */
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 40px 80px;
+  }
+
+  /* ── TOC ── */
+  .toc {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px 36px;
+    margin: 40px 0;
+    box-shadow: var(--shadow);
+  }
+  .toc h2 {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--text-m);
+    margin-bottom: 18px;
+  }
+  .toc-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 40px;
+  }
+  .toc a {
+    text-decoration: none;
+    color: var(--text);
+    font-size: 14px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 4px 0;
+    border-bottom: 1px solid transparent;
+    transition: color .15s;
+  }
+  .toc a:hover { color: var(--green); }
+  .toc-num {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--green);
+    background: var(--green-l);
+    border-radius: 4px;
+    padding: 1px 6px;
+    flex-shrink: 0;
+  }
+
+  /* ── Chapters ── */
+  .chapter {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 40px 44px;
+    margin-bottom: 28px;
+    box-shadow: var(--shadow);
+  }
+  .chapter-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: var(--green);
+    margin-bottom: 6px;
+  }
+  .chapter h2 {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 6px;
+    line-height: 1.3;
+  }
+  .chapter-sub {
+    font-size: 14px;
+    color: var(--text-m);
+    margin-bottom: 28px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .chapter h3 {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 28px 0 10px;
+  }
+  .chapter h4 {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--text-m);
+    margin: 20px 0 8px;
+  }
+  .chapter p {
+    font-size: 15px;
+    color: #3D4852;
+    line-height: 1.8;
+    margin-bottom: 14px;
+  }
+
+  /* ── Callout boxes ── */
+  .box {
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin: 16px 0;
+    font-size: 14px;
+    line-height: 1.7;
+    border-left: 3px solid;
+  }
+  .box.green  { background: var(--green-l);  border-color: var(--green);  color: #1B5E20; }
+  .box.blue   { background: var(--blue-l);   border-color: var(--blue);   color: #0D47A1; }
+  .box.amber  { background: var(--amber-l);  border-color: var(--amber);  color: #BF360C; }
+  .box.red    { background: var(--red-l);    border-color: var(--red);    color: #B71C1C; }
+  .box strong { font-weight: 600; }
+
+  /* ── Code ── */
+  pre, code {
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+  }
+  code {
+    background: var(--gray-l);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 13px;
+    color: #C62828;
+  }
+  pre {
+    background: #1E272E;
+    color: #CDD9E5;
+    border-radius: 8px;
+    padding: 18px 20px;
+    font-size: 13px;
+    line-height: 1.65;
+    overflow-x: auto;
+    margin: 14px 0;
+  }
+  pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 13px;
+    color: #CDD9E5;
+  }
+  .kw  { color: #79B8FF; }
+  .fn  { color: #B392F0; }
+  .st  { color: #85E89D; }
+  .cm  { color: #6A737D; font-style: italic; }
+  .nm  { color: #F97583; }
+
+  /* ── Tables ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  th {
+    background: var(--gray-l);
+    font-weight: 600;
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 2px solid var(--border);
+    color: var(--text);
+    font-size: 13px;
+  }
+  td {
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--border);
+    color: #3D4852;
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:nth-child(even) td { background: #FAFAFA; }
+
+  /* ── Steps ── */
+  .steps { list-style: none; margin: 16px 0; counter-reset: step; }
+  .steps li {
+    counter-increment: step;
+    display: flex;
+    gap: 14px;
+    margin-bottom: 16px;
+    align-items: flex-start;
+  }
+  .steps li::before {
+    content: counter(step);
+    min-width: 28px;
+    height: 28px;
+    background: var(--green);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .step-title { font-weight: 600; font-size: 14px; margin-bottom: 3px; }
+  .step-desc  { font-size: 14px; color: var(--text-m); line-height: 1.65; }
+
+  /* ── Card grid ── */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+  }
+  .card {
+    background: var(--gray-l);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .card-title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+  .card-desc  { font-size: 13px; color: var(--text-m); line-height: 1.55; }
+
+  /* ── Architecture flow ── */
+  .flow {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 16px 0;
+  }
+  .flow-box {
+    border-radius: 8px;
+    padding: 11px 16px;
+    border: 1px solid var(--border);
+    font-size: 14px;
+  }
+  .flow-box .fl { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 2px; }
+  .flow-box .fv { font-weight: 600; }
+  .flow-box .fn2 { font-size: 12px; color: var(--text-m); margin-top: 1px; }
+  .flow-box.green { border-left: 3px solid var(--green); background: var(--green-l); }
+  .flow-box.blue  { border-left: 3px solid var(--blue);  background: var(--blue-l); }
+  .flow-box.amber { border-left: 3px solid var(--amber); background: var(--amber-l); }
+  .flow-box.red   { border-left: 3px solid var(--red);   background: var(--red-l); }
+  .flow-arrow { text-align: center; font-size: 18px; color: var(--gray-m); line-height: 1; margin: 2px 0; }
+  .flow-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+
+  /* ── Badges ── */
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+  .badge.green { background: var(--green-l); color: var(--green-d); }
+  .badge.blue  { background: var(--blue-l);  color: var(--blue); }
+  .badge.amber { background: var(--amber-l); color: var(--amber); }
+  .badge.red   { background: var(--red-l);   color: var(--red); }
+
+  /* ── Glossary ── */
+  .gloss-item { margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+  .gloss-item:last-child { border-bottom: none; }
+  .gloss-term { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 500; color: var(--green-d); }
+  .gloss-def  { font-size: 14px; color: #3D4852; margin-top: 2px; line-height: 1.6; }
+
+  /* ── Cell sequence ── */
+  .cell-row { display: flex; gap: 10px; align-items: stretch; margin-bottom: 6px; }
+  .cell-num { width: 30px; font-size: 12px; font-weight: 600; color: var(--text-m); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .cell-box { flex: 1; border-radius: 8px; padding: 10px 14px; border: 1px solid var(--border); }
+  .cell-box.orig  { border-left: 3px solid var(--green); background: var(--green-l); }
+  .cell-box.added { border-left: 3px solid var(--blue);  background: var(--blue-l); }
+  .cell-box.new   { border-left: 3px solid var(--amber); background: var(--amber-l); }
+  .cell-lbl { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 2px; }
+  .cell-lbl.orig  { color: var(--green-d); }
+  .cell-lbl.added { color: var(--blue); }
+  .cell-lbl.new   { color: var(--amber); }
+  .cell-title2 { font-size: 13px; font-weight: 600; color: var(--text); }
+  .cell-note2  { font-size: 12px; color: var(--text-m); margin-top: 1px; }
+
+  /* ── Footer ── */
+  .footer {
+    text-align: center;
+    padding: 40px;
+    font-size: 13px;
+    color: var(--text-m);
+    border-top: 1px solid var(--border);
+    background: white;
+    margin-top: 20px;
+  }
+
+  /* ── Print ── */
+  @media print {
+    body { background: white; }
+    .chapter { break-inside: avoid; box-shadow: none; border: 1px solid #ddd; }
+    .cover { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    pre { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════ COVER ═══════════════════ -->
+<div class="cover">
+  <div class="cover-badge">Project Onboarding Guide</div>
+  <h1>Plant Disease Detection System</h1>
+  <p class="sub">A complete beginner-friendly guide covering the project idea, models, architecture, technologies, and workflow — written by the project owner.</p>
+  <div class="cover-meta">
+    <span>🌿 Two-Stage AI Pipeline</span>
+    <span>🧠 MobileNetV2 Transfer Learning</span>
+    <span>🔬 Grad-CAM Explainability</span>
+    <span>📊 5 Plants · 13 Disease Classes</span>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ═══════════════════ TOC ═══════════════════ -->
+<div class="toc">
+  <h2>Table of Contents</h2>
+  <div class="toc-grid">
+    <a href="#ch1"><span class="toc-num">01</span>Welcome & Project Overview</a>
+    <a href="#ch7"><span class="toc-num">07</span>Each Model Explained</a>
+    <a href="#ch2"><span class="toc-num">02</span>The Problem We Solve</a>
+    <a href="#ch8"><span class="toc-num">08</span>Code Walkthrough</a>
+    <a href="#ch3"><span class="toc-num">03</span>Technologies Used</a>
+    <a href="#ch9"><span class="toc-num">09</span>Grad-CAM Heatmaps</a>
+    <a href="#ch4"><span class="toc-num">04</span>Deep Learning 101</a>
+    <a href="#ch10"><span class="toc-num">10</span>How to Run the Project</a>
+    <a href="#ch5"><span class="toc-num">05</span>Dataset Description</a>
+    <a href="#ch11"><span class="toc-num">11</span>Common Errors & Fixes</a>
+    <a href="#ch6"><span class="toc-num">06</span>Two-Stage Architecture</a>
+    <a href="#ch12"><span class="toc-num">12</span>Glossary</a>
+  </div>
+</div>
+
+<!-- ═══════════════════ CH 1 ═══════════════════ -->
+<div class="chapter" id="ch1">
+  <div class="chapter-label">Chapter 01</div>
+  <h2>Welcome &amp; Project Overview</h2>
+  <p class="chapter-sub">What this project is and why you are reading this guide.</p>
+
+  <p>Welcome to the team! This document will walk you through everything you need to understand about this project — from the original idea to every line of important code. No prior deep learning experience is assumed. By the time you finish this guide you will be able to understand, run, and improve the system.</p>
+
+  <h3>What does this project do?</h3>
+  <p>In one sentence: <strong>you take a photo of a plant leaf, and the system tells you what disease it has and how to treat it.</strong></p>
+  <p>The system does this in two steps. First it identifies what type of plant the leaf belongs to. Then it passes that information to a specialist model that knows the diseases for that specific plant. The final output includes the disease name, a confidence percentage, treatment advice, and a heatmap showing which part of the leaf the AI was looking at.</p>
+
+  <h3>Project files at a glance</h3>
+  <table>
+    <tr><th>File</th><th>What it does</th></tr>
+    <tr><td><code>Plant_Identification.ipynb</code></td><td>Training notebook for the Stage-1 plant identifier model</td></tr>
+    <tr><td><code>Apple_disease.ipynb</code></td><td>Training notebook for the Apple disease model</td></tr>
+    <tr><td><code>Grape_disease.ipynb</code></td><td>Training notebook for the Grape disease model</td></tr>
+    <tr><td><code>Pepper_disease.ipynb</code></td><td>Training notebook for the Pepper disease model</td></tr>
+    <tr><td><code>Plant_DISEASE_Main.ipynb</code></td><td>The main pipeline — this is what you run to use the system</td></tr>
+    <tr><td><code>plant_identifier.keras</code></td><td>Saved Stage-1 model (plant identification)</td></tr>
+    <tr><td><code>Apple_disease.keras</code></td><td>Saved Stage-2 model (apple diseases)</td></tr>
+    <tr><td><code>Potato_disease.keras</code></td><td>Saved Stage-2 model (potato diseases)</td></tr>
+    <tr><td><code>Grape_disease.keras</code></td><td>Saved Stage-2 model (grape diseases)</td></tr>
+    <tr><td><code>Pepper_disease.keras</code></td><td>Saved Stage-2 model (pepper diseases)</td></tr>
+  </table>
+
+  <div class="box green"><strong>The only file you need to open to use the system is Plant_DISEASE_Main.ipynb.</strong> All the training notebooks have already been run and the models have been saved. You never need to retrain unless you want to improve a model.</div>
+</div>
+
+<!-- ═══════════════════ CH 2 ═══════════════════ -->
+<div class="chapter" id="ch2">
+  <div class="chapter-label">Chapter 02</div>
+  <h2>The Problem We Solve</h2>
+  <p class="chapter-sub">Why this project exists and what real-world pain it addresses.</p>
+
+  <h3>The situation</h3>
+  <p>Imagine a farmer in rural India or anywhere in the world. Their crops are getting sick — leaves are turning yellow, showing dark spots, wilting. If they don't identify the disease fast and treat it correctly, they can lose their entire harvest. The Food and Agriculture Organisation estimates that plant diseases cause 20–40% of global crop losses every year — worth over USD 220 billion.</p>
+
+  <h3>The traditional solution and its problems</h3>
+  <div class="cards">
+    <div class="card"><div class="card-title">Expensive</div><div class="card-desc">Expert agronomist consultations cost money most small farmers don't have</div></div>
+    <div class="card"><div class="card-title">Slow</div><div class="card-desc">Getting an expert to visit can take days — by then, disease spreads further</div></div>
+    <div class="card"><div class="card-title">Unavailable</div><div class="card-desc">Many rural areas have no local agricultural experts at all</div></div>
+    <div class="card"><div class="card-title">Inconsistent</div><div class="card-desc">Different experts sometimes give different diagnoses for the same disease</div></div>
+  </div>
+
+  <h3>Our solution</h3>
+  <p>An AI system that can look at a photo of a sick leaf and tell you exactly what disease it has — within seconds, from any computer, for free. The pipeline also gives treatment advice, so the farmer knows what to do immediately.</p>
+
+  <h3>Supported plants and diseases</h3>
+  <table>
+    <tr><th>Plant</th><th>Supported conditions</th><th>Stage-2 model</th></tr>
+    <tr><td>Apple</td><td>Apple Scab, Black Rot, Cedar Apple Rust, Healthy</td><td>Apple_disease.keras</td></tr>
+    <tr><td>Potato</td><td>Early Blight, Late Blight, Healthy</td><td>Potato_disease.keras</td></tr>
+    <tr><td>Grape</td><td>Black Rot, Esca (Black Measles), Leaf Blight, Healthy</td><td>Grape_disease.keras</td></tr>
+    <tr><td>Pepper</td><td>Bacterial Spot, Healthy</td><td>Pepper_disease.keras</td></tr>
+    <tr><td>Corn</td><td>Identified only (no disease model yet)</td><td>—</td></tr>
+    <tr><td>Tomato</td><td>Identified only (no disease model yet)</td><td>—</td></tr>
+  </table>
+
+  <div class="box amber"><strong>Why is "Healthy" also a class?</strong> Because a farmer needs to know "your plant is fine, don't spray chemicals" just as much as they need to know "your plant is sick." False alarms waste money and damage crops.</div>
+</div>
+
+<!-- ═══════════════════ CH 3 ═══════════════════ -->
+<div class="chapter" id="ch3">
+  <div class="chapter-label">Chapter 03</div>
+  <h2>Technologies Used</h2>
+  <p class="chapter-sub">Every tool in this project explained from zero, no jargon.</p>
+
+  <h3>Python</h3>
+  <p>The programming language everything is written in. All our code — building models, processing images, showing results — is Python. We use Python 3.13.</p>
+
+  <h3>TensorFlow &amp; Keras</h3>
+  <p><strong>TensorFlow</strong> is Google's open-source library for building and training AI models — think of it as the engine. <strong>Keras</strong> is a friendlier interface that sits on top of TensorFlow and is now part of it — it's the steering wheel that makes the engine easy to use. When you see <code>model.fit()</code> or <code>model.predict()</code>, that is Keras.</p>
+  <div class="box blue"><strong>Important:</strong> This project uses Keras 3 (which comes with recent TensorFlow versions and Python 3.13). Some older code patterns don't work in Keras 3. All code in this project has been updated to be Keras 3 compatible.</div>
+
+  <h3>MobileNetV2</h3>
+  <p>A pre-built neural network designed by Google and trained on 14 million images. We borrow its learned visual knowledge and re-train just the final layers to recognise plant diseases. This technique is called transfer learning — explained fully in Chapter 4.</p>
+
+  <h3>NumPy</h3>
+  <p>A library for fast mathematics on large arrays of numbers. When an image is loaded, it becomes a 3-dimensional grid of numbers (pixels). NumPy lets us do fast calculations on those numbers.</p>
+
+  <h3>Matplotlib &amp; PIL (Pillow)</h3>
+  <p><strong>Matplotlib</strong> draws graphs and charts — we use it to show confidence bar charts and Grad-CAM heatmaps. <strong>PIL/Pillow</strong> opens, resizes, and converts image files between formats.</p>
+
+  <h3>OpenCV (cv2)</h3>
+  <p>A computer vision library used for image preprocessing improvements — specifically for isolating the dominant leaf region from complex real-world photographs with cluttered backgrounds.</p>
+
+  <h3>ipywidgets</h3>
+  <p>A library that adds interactive UI elements inside Jupyter notebooks — buttons, sliders, dropdowns, file uploaders. We use it to create the upload button interface in the main notebook.</p>
+
+  <h3>Jupyter Notebook</h3>
+  <p>The environment where all the code runs. Think of it as a document where you can write and run code cell by cell, see outputs immediately, and add explanatory text between cells. All <code>.ipynb</code> files are Jupyter notebooks.</p>
+
+  <h3>Complete dependency list</h3>
+  <pre><code>pip install tensorflow>=2.15
+pip install numpy matplotlib pillow
+pip install opencv-python
+pip install ipywidgets
+pip install jupyter notebook</code></pre>
+</div>
+
+<!-- ═══════════════════ CH 4 ═══════════════════ -->
+<div class="chapter" id="ch4">
+  <div class="chapter-label">Chapter 04</div>
+  <h2>Deep Learning 101</h2>
+  <p class="chapter-sub">Neural networks, training, and transfer learning — explained plainly.</p>
+
+  <h3>What is a neural network?</h3>
+  <p>A neural network is a program that <strong>learns from examples</strong>. Instead of writing rules like "if the leaf has brown spots, it is Early Blight", we show it thousands of labelled photos and let it figure out the rules itself. It is called "neural" because it is loosely inspired by how brain cells (neurons) connect together.</p>
+
+  <h3>What does "training" mean?</h3>
+  <p>Training is the process of showing the network labelled examples over and over. Each time it makes a wrong prediction, it adjusts its internal numbers (called <strong>weights</strong>) a tiny bit to do better next time. After thousands of adjustments across thousands of images, it gets good at the task.</p>
+  <pre><code>Epoch 1:  train accuracy = 96.6%   val accuracy = 94.7%   ← still learning
+Epoch 5:  train accuracy = 99.1%   val accuracy = 96.6%   ← getting better
+Epoch 10: train accuracy = 99.5%   val accuracy = 93.8%   ← converged</code></pre>
+  <div class="box amber"><strong>Why does val accuracy fluctuate?</strong> Training accuracy measures performance on data the model has seen. Validation accuracy measures it on unseen data. The gap between them tells us how well the model generalises to new photos.</div>
+
+  <h3>What is transfer learning?</h3>
+  <p>Training a neural network from scratch takes millions of images and weeks of computing time. Transfer learning is a shortcut: we take a network already trained on a huge general dataset, and re-use its learned visual features for our specific task.</p>
+  <div class="box green"><strong>Analogy:</strong> If you already know how to drive a car, learning to drive a truck is much faster than learning from zero. You re-use your existing "driving knowledge" and just adapt to the new vehicle. That is exactly what we do — we take MobileNetV2's "visual knowledge" and adapt it to recognise plant diseases.</div>
+
+  <h3>What is MobileNetV2?</h3>
+  <p>MobileNetV2 is a neural network architecture designed by Google in 2018. "Mobile" means it is optimised to be fast and lightweight — it can run on a phone without needing a powerful GPU. It was trained on ImageNet (14 million images, 1000 categories). So it already "knows" how to see edges, textures, colours, and complex patterns. We add our own classification layers on top.</p>
+
+  <h3>Our model structure</h3>
+  <div class="flow">
+    <div class="flow-box blue"><div class="fl">Input</div><div class="fv">Leaf image 224×224×3</div><div class="fn2">3 colour channels (RGB), resized to model input size</div></div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-box green"><div class="fl">MobileNetV2 backbone — frozen</div><div class="fv">Feature extraction</div><div class="fn2">154 layers, pretrained on ImageNet — outputs 7×7×1280 feature maps</div></div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-box amber"><div class="fl">GlobalAveragePooling2D</div><div class="fv">Spatial compression</div><div class="fn2">Converts 7×7×1280 → flat vector of 1280 numbers</div></div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-box amber"><div class="fl">Dense (128 or 256, ReLU) + Dropout</div><div class="fv">Pattern learning</div><div class="fn2">Our custom head — learns disease-specific patterns</div></div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-box red"><div class="fl">Dense (N, Softmax) — output layer</div><div class="fv">Final prediction</div><div class="fn2">N = number of classes. Outputs probability for each class summing to 1.</div></div>
+  </div>
+
+  <h3>What does softmax output mean?</h3>
+  <p>The output is a list of <strong>probabilities</strong> — one number per class, all adding up to 1. For the plant model the output might be: Apple=0.96, Corn=0.02, Grape=0.01, Pepper=0.005, Potato=0.004, Tomato=0.001. We pick the highest one — Apple at 96%.</p>
+</div>
+
+<!-- ═══════════════════ CH 5 ═══════════════════ -->
+<div class="chapter" id="ch5">
+  <div class="chapter-label">Chapter 05</div>
+  <h2>Dataset Description</h2>
+  <p class="chapter-sub">What data was used, how it is organised, and what augmentation means.</p>
+
+  <h3>Source: PlantVillage dataset</h3>
+  <p>We used the PlantVillage dataset — a publicly available collection of plant leaf images created by Pennsylvania State University. It contains over 54,000 images of healthy and diseased plant leaves captured under controlled conditions against plain backgrounds.</p>
+
+  <h3>Folder structure</h3>
+  <pre><code>Disease_Identification/
+├── Train/
+│   ├── Apple/           ← all apple leaf images for Stage-1 training
+│   ├── Corn/
+│   ├── Grape/
+│   ├── Pepper/
+│   ├── Potato/
+│   └── Tomato/
+└── Validation/
+    ├── Apple/           ← separate images for measuring accuracy
+    └── ...
+
+Plants_dataSet/
+├── Apple/
+│   ├── Train/
+│   │   ├── Apple___Apple_scab/
+│   │   ├── Apple___Black_rot/
+│   │   ├── Apple___Cedar_apple_rust/
+│   │   └── Apple___healthy/
+│   └── Validation/
+└── ... (same for Potato, Grape, Pepper)</code></pre>
+
+  <h3>Dataset numbers</h3>
+  <table>
+    <tr><th>Model</th><th>Training images</th><th>Validation images</th><th>Classes</th></tr>
+    <tr><td>Plant Identifier (Stage 1)</td><td>14,991</td><td>4,397</td><td>6</td></tr>
+    <tr><td>Apple Disease (Stage 2-A)</td><td>~2,800</td><td>~700</td><td>4</td></tr>
+    <tr><td>Potato Disease (Stage 2-B)</td><td>~2,100</td><td>~525</td><td>3</td></tr>
+    <tr><td>Grape Disease (Stage 2-C)</td><td>~3,000</td><td>~750</td><td>4</td></tr>
+    <tr><td>Pepper Disease (Stage 2-D)</td><td>~1,500</td><td>~375</td><td>2</td></tr>
+  </table>
+
+  <h3>What is data augmentation?</h3>
+  <p>When we don't have enough images, we artificially create more by slightly modifying the existing ones — rotating them, flipping them, zooming in slightly. The model then sees more variety and becomes more robust to real-world photos.</p>
+  <pre><code><span class="kw">from</span> tensorflow.keras.preprocessing.image <span class="kw">import</span> ImageDataGenerator
+
+train_datagen = <span class="fn">ImageDataGenerator</span>(
+    rescale=<span class="nm">1./255</span>,          <span class="cm"># normalise pixels to [0,1]</span>
+    rotation_range=<span class="nm">20</span>,       <span class="cm"># rotate up to 20 degrees</span>
+    zoom_range=<span class="nm">0.2</span>,          <span class="cm"># zoom in/out up to 20%</span>
+    horizontal_flip=<span class="kw">True</span>    <span class="cm"># randomly mirror the image</span>
+)</code></pre>
+
+  <h3>Training vs validation split</h3>
+  <p>We never test the model on data it trained on — that would be like letting a student take the same exam they studied from. The validation set contains images the model has never seen, so accuracy on it reflects real-world performance.</p>
+
+  <h3>Known limitation: dataset vs real world</h3>
+  <p>PlantVillage images were taken under controlled conditions — one leaf, plain background, good lighting. Real field photos have multiple leaves, dark backgrounds, shadows, and glare. This is why we added an improved <code>preprocess_image()</code> function that isolates the dominant leaf using OpenCV before feeding the image to the model.</p>
+</div>
+
+<!-- ═══════════════════ CH 6 ═══════════════════ -->
+<div class="chapter" id="ch6">
+  <div class="chapter-label">Chapter 06</div>
+  <h2>Two-Stage Architecture</h2>
+  <p class="chapter-sub">The most important design decision in the whole project.</p>
+
+  <h3>Why not just one big model?</h3>
+  <p>A simple approach would be: train one model that takes a leaf image and directly outputs "Apple Scab" or "Grape Black Rot" — one model covering all 13+ disease classes. The problem is that a single model trying to do everything gets confused. It has to learn "is this an apple or a grape?" at the same time as "is this scab or black rot?" — these are very different visual tasks mixed together.</p>
+
+  <h3>Our approach: divide and specialise</h3>
+  <div class="flow">
+    <div class="flow-box blue"><div class="fl">Input</div><div class="fv">Any leaf image (photo from camera or file)</div></div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-box green"><div class="fl">Stage 1 — plant_identifier.keras</div><div class="fv">"What plant is this?"</div><div class="fn2">Outputs one of: Apple / Corn / Grape / Pepper / Potato / Tomato</div></div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-box amber"><div class="fl">DISEASE_REGISTRY routing</div><div class="fv">Auto-select the right disease model</div><div class="fn2">Apple → Apple model &nbsp;|&nbsp; Potato → Potato model &nbsp;|&nbsp; etc.</div></div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-row">
+      <div class="flow-box green"><div class="fl">Apple model</div><div class="fv">4 classes</div></div>
+      <div class="flow-box blue"><div class="fl">Potato model</div><div class="fv">3 classes</div></div>
+      <div class="flow-box amber"><div class="fl">Grape model</div><div class="fv">4 classes</div></div>
+      <div class="flow-box red"><div class="fl">Pepper model</div><div class="fv">2 classes</div></div>
+    </div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-box green"><div class="fl">Output</div><div class="fv">Disease name + Confidence % + Treatment advice + Grad-CAM heatmap</div></div>
+  </div>
+
+  <h3>Advantages of this design</h3>
+  <table>
+    <tr><th>Advantage</th><th>What it means in practice</th></tr>
+    <tr><td>Each model is a specialist</td><td>The Apple model only knows about apple diseases — it is sharper than a generalist</td></tr>
+    <tr><td>Easy to extend</td><td>Adding Tomato diseases? Just train a Tomato model and add one line to DISEASE_REGISTRY</td></tr>
+    <tr><td>Fail gracefully</td><td>If no disease model exists, Stage 1 still tells you what plant it is</td></tr>
+    <tr><td>Separate improvement</td><td>You can improve the Grape model without touching Apple or Potato</td></tr>
+    <tr><td>Faster per-model training</td><td>Each specialist model trains on a smaller focused dataset — faster and more accurate</td></tr>
+  </table>
+
+  <h3>The Pepper exception</h3>
+  <p>Pepper was accidentally left out of the Stage-1 training data. So for Pepper, we use a <code>plant_override</code> parameter to skip Stage 1 and go directly to the Pepper disease model. This is handled cleanly in the code:</p>
+  <pre><code><span class="cm"># Normal use — Stage 1 detects the plant automatically</span>
+<span class="fn">show_combined</span>(<span class="st">"apple_leaf.jpg"</span>)
+
+<span class="cm"># Pepper override — skip Stage 1</span>
+<span class="fn">show_combined</span>(<span class="st">"pepper_leaf.jpg"</span>, plant_override=<span class="st">"Pepper"</span>)</code></pre>
+
+  <h3>The DISEASE_REGISTRY</h3>
+  <p>This Python dictionary is the routing table of the entire pipeline. It maps plant names to their models and class labels:</p>
+  <pre><code>DISEASE_REGISTRY = {
+    <span class="st">"Apple"</span>:  {<span class="st">"model"</span>: apple_model,  <span class="st">"classes"</span>: apple_classes},
+    <span class="st">"Potato"</span>: {<span class="st">"model"</span>: potato_model, <span class="st">"classes"</span>: potato_classes},
+    <span class="st">"Grape"</span>:  {<span class="st">"model"</span>: grape_model,  <span class="st">"classes"</span>: grape_classes},
+    <span class="st">"Pepper"</span>: {<span class="st">"model"</span>: pepper_model, <span class="st">"classes"</span>: pepper_classes},
+}
+<span class="cm"># To add Tomato in the future: just add one entry here.</span></code></pre>
+</div>
+
+<!-- ═══════════════════ CH 7 ═══════════════════ -->
+<div class="chapter" id="ch7">
+  <div class="chapter-label">Chapter 07</div>
+  <h2>Each Model Explained</h2>
+  <p class="chapter-sub">A detailed look at the architecture of all five trained models.</p>
+
+  <h3>plant_identifier.keras — Stage 1 <span class="badge green">Sequential API</span></h3>
+  <p>Trained in <code>Plant_Identification.ipynb</code>. Classifies leaf images into 6 plant categories. Uses a Sequential Keras model (layers stacked in a simple line, one after another).</p>
+  <pre><code>model = <span class="fn">Sequential</span>([
+    <span class="fn">MobileNetV2</span>(weights=<span class="st">'imagenet'</span>, include_top=<span class="kw">False</span>),
+    <span class="fn">GlobalAveragePooling2D</span>(),
+    <span class="fn">Dense</span>(<span class="nm">128</span>, activation=<span class="st">'relu'</span>),
+    <span class="fn">Dense</span>(<span class="nm">6</span>, activation=<span class="st">'softmax'</span>)   <span class="cm"># 6 plant classes</span>
+])</code></pre>
+  <table>
+    <tr><th>Metric</th><th>Value</th></tr>
+    <tr><td>Best validation accuracy</td><td>96.61% (epoch 5)</td></tr>
+    <tr><td>Final training accuracy</td><td>99.53%</td></tr>
+    <tr><td>Epochs trained</td><td>10</td></tr>
+    <tr><td>Output classes</td><td>Apple, Corn, Grape, Pepper, Potato, Tomato</td></tr>
+  </table>
+
+  <h3>Apple_disease.keras — Stage 2-A <span class="badge blue">Functional API</span></h3>
+  <p>Trained in <code>Apple_disease.ipynb</code>. Uses the Functional API (more flexible than Sequential — allows complex connections). Also includes BatchNormalization and Dropout for better generalisation, and was fine-tuned in two phases.</p>
+  <pre><code>inputs = <span class="fn">Input</span>(shape=(<span class="nm">224</span>, <span class="nm">224</span>, <span class="nm">3</span>))
+x = base_model(inputs, training=<span class="kw">False</span>)
+x = <span class="fn">GlobalAveragePooling2D</span>()(x)
+x = <span class="fn">BatchNormalization</span>()(x)    <span class="cm"># stabilises training</span>
+x = <span class="fn">Dense</span>(<span class="nm">256</span>, activation=<span class="st">'relu'</span>)(x)
+x = <span class="fn">Dropout</span>(<span class="nm">0.4</span>)(x)           <span class="cm"># prevents overfitting</span>
+x = <span class="fn">Dense</span>(<span class="nm">128</span>, activation=<span class="st">'relu'</span>)(x)
+x = <span class="fn">Dropout</span>(<span class="nm">0.3</span>)(x)
+outputs = <span class="fn">Dense</span>(<span class="nm">4</span>, activation=<span class="st">'softmax'</span>)(x)</code></pre>
+
+  <div class="box blue"><strong>BatchNormalization</strong> normalises the activations between layers so training is more stable. <strong>Dropout</strong> randomly "turns off" some neurons during training, which forces the network to learn more robust features and prevents memorising the training data.</div>
+
+  <h3>Potato / Grape / Pepper models — Stage 2-B, C, D</h3>
+  <p>All follow the same MobileNetV2 backbone pattern. The only difference is the number of output classes:</p>
+  <div class="flow-row">
+    <div class="flow-box blue"><div class="fl">Potato</div><div class="fv">3 output classes</div><div class="fn2">Early Blight, Late Blight, Healthy</div></div>
+    <div class="flow-box amber"><div class="fl">Grape</div><div class="fv">4 output classes</div><div class="fn2">Black Rot, Esca, Leaf Blight, Healthy</div></div>
+    <div class="flow-box red"><div class="fl">Pepper</div><div class="fv">2 output classes</div><div class="fn2">Bacterial Spot, Healthy</div></div>
+  </div>
+
+  <h3>Critical: class labels must match model outputs</h3>
+  <p>Your class label list must have exactly the same number of items as the model's output neurons, and in the same alphabetical order that ImageDataGenerator assigned during training. To verify this, run:</p>
+  <pre><code><span class="cm"># Diagnostic check — run this if you see shape mismatch errors</span>
+<span class="kw">print</span>(f<span class="st">"plant_classes count : {</span><span class="fn">len</span>(plant_classes)<span class="st">}"</span>)
+<span class="kw">print</span>(f<span class="st">"plant_model outputs : {plant_model.output_shape[-1]}"</span>)
+
+<span class="kw">for</span> name, entry <span class="kw">in</span> DISEASE_REGISTRY.items():
+    n_lbl = <span class="fn">len</span>(entry[<span class="st">"classes"</span>])
+    n_mdl = entry[<span class="st">"model"</span>].output_shape[-<span class="nm">1</span>]
+    status = <span class="st">"✓"</span> <span class="kw">if</span> n_lbl == n_mdl <span class="kw">else</span> <span class="st">"✗ MISMATCH"</span>
+    <span class="kw">print</span>(f<span class="st">"  {name}: labels={n_lbl}  model={n_mdl}  {status}"</span>)</code></pre>
+</div>
+
+<!-- ═══════════════════ CH 8 ═══════════════════ -->
+<div class="chapter" id="ch8">
+  <div class="chapter-label">Chapter 08</div>
+  <h2>Code Walkthrough</h2>
+  <p class="chapter-sub">Every cell in Plant_DISEASE_Main.ipynb explained line by line.</p>
+
+  <h3>Cell execution order</h3>
+  <div style="margin:16px 0">
+    <div class="cell-row"><div class="cell-num">1</div><div class="cell-box orig"><div class="cell-lbl orig">Step 1 — Original</div><div class="cell-title2">Import Libraries</div><div class="cell-note2">tensorflow, numpy, matplotlib, PIL, cv2, ipywidgets</div></div></div>
+    <div class="cell-row"><div class="cell-num">2</div><div class="cell-box orig"><div class="cell-lbl orig">Step 2 — Original</div><div class="cell-title2">Load Models</div><div class="cell-note2">plant_model, apple_model, potato_model, grape_model, pepper_model</div></div></div>
+    <div class="cell-row"><div class="cell-num">3</div><div class="cell-box orig"><div class="cell-lbl orig">Step 3 — Original</div><div class="cell-title2">Class Labels</div><div class="cell-note2">plant_classes (6 items), apple_classes, potato_classes, grape_classes, pepper_classes</div></div></div>
+    <div class="cell-row"><div class="cell-num">4</div><div class="cell-box orig"><div class="cell-lbl orig">Step 4 — Original</div><div class="cell-title2">Treatment Advice Dictionary</div><div class="cell-note2">TREATMENT_ADVICE = {"Apple Scab": "...", "Late Blight": "...", ...}</div></div></div>
+    <div class="cell-row"><div class="cell-num">5</div><div class="cell-box orig"><div class="cell-lbl orig">Step 4 — Original</div><div class="cell-title2">preprocess_image( )</div><div class="cell-note2">Loads image → isolates dominant leaf (OpenCV) → resize → normalise</div></div></div>
+    <div class="cell-row"><div class="cell-num">6</div><div class="cell-box orig"><div class="cell-lbl orig">Step 5 — Original</div><div class="cell-title2">identify_plant( )</div><div class="cell-note2">Stage-1 prediction with confidence threshold warning</div></div></div>
+    <div class="cell-row"><div class="cell-num">7</div><div class="cell-box orig"><div class="cell-lbl orig">Step 6 — Original</div><div class="cell-title2">detect_disease( )</div><div class="cell-note2">Looks up DISEASE_REGISTRY, runs Stage-2 model, returns disease + advice</div></div></div>
+    <div class="cell-row"><div class="cell-num">8</div><div class="cell-box orig"><div class="cell-lbl orig">Step 7 — Original</div><div class="cell-title2">run_pipeline( )</div><div class="cell-note2">Glue function: calls identify_plant → detect_disease → returns result dict</div></div></div>
+    <div class="cell-row"><div class="cell-num">9</div><div class="cell-box orig"><div class="cell-lbl orig">Step 8 — Original</div><div class="cell-title2">show_result( ) definition</div><div class="cell-note2">Keep this cell but you don't call it directly — show_combined replaces it</div></div></div>
+    <div class="cell-row"><div class="cell-num">10</div><div class="cell-box orig"><div class="cell-lbl orig">Step 9 — Original</div><div class="cell-title2">predict_batch( ) — optional</div><div class="cell-note2">Runs the pipeline on multiple images at once</div></div></div>
+    <div class="cell-row"><div class="cell-num">11</div><div class="cell-box added"><div class="cell-lbl added">Step 5-A — Added</div><div class="cell-title2">Grad-CAM Core Functions (Keras 3 compatible)</div><div class="cell-note2">get_gradcam_heatmap( ) and overlay_gradcam( )</div></div></div>
+    <div class="cell-row"><div class="cell-num">12</div><div class="cell-box new"><div class="cell-lbl new">New Combined Cell — Run this</div><div class="cell-title2">Upload Button + show_combined( )</div><div class="cell-note2">File upload widget + merged show_result + Grad-CAM output in one panel</div></div></div>
+  </div>
+
+  <h3>Key functions explained</h3>
+
+  <h4>preprocess_image( )</h4>
+  <p>Every image must be converted to the same format before feeding to the model. Steps: load with OpenCV → convert to HSV colour space → create a green-pixel mask → find the largest contour (dominant leaf) → crop to that region with 10% padding → resize to 224×224 → apply MobileNetV2 normalisation (scales pixels from [0,255] to [-1,1]).</p>
+
+  <h4>run_pipeline( )</h4>
+  <p>The glue function. Takes an image path and optional plant_override. Calls <code>identify_plant()</code> to get the plant name, then calls <code>detect_disease()</code> with that plant name to get the disease. Returns a single result dictionary with keys: <code>plant</code>, <code>disease</code>, <code>plant_confidence</code>, <code>disease_confidence</code>, <code>advice</code>.</p>
+
+  <h4>show_combined( )</h4>
+  <p>The main display function. Calls <code>run_pipeline()</code>, generates Grad-CAM heatmaps for both stages, then draws a 2-row 4-column figure: original image, Stage-1 heatmap, Stage-2 heatmap, pure activation map (row 1) and Stage-1 confidence bars, Stage-2 confidence bars, treatment advice (row 2).</p>
+</div>
+
+<!-- ═══════════════════ CH 9 ═══════════════════ -->
+<div class="chapter" id="ch9">
+  <div class="chapter-label">Chapter 09</div>
+  <h2>Grad-CAM Heatmaps</h2>
+  <p class="chapter-sub">What they are, why we added them, and how they work.</p>
+
+  <h3>Why we need explainability</h3>
+  <p>When the model says "This is Apple Scab (94% confidence)", how do we know it is looking at the right part of the leaf and not accidentally at the background colour or a watermark? We can't trust what we can't inspect. Grad-CAM solves this by showing exactly which pixels drove the prediction — overlaid as a colour heatmap on the original image.</p>
+
+  <h3>How to read the heatmap</h3>
+  <table>
+    <tr><th>Colour (jet colourmap)</th><th>Meaning</th></tr>
+    <tr><td style="color:#CC2200;font-weight:600">Red / Yellow</td><td>Highest activation — the region that most influenced the prediction</td></tr>
+    <tr><td style="color:#228B22;font-weight:600">Green</td><td>Medium influence on the prediction</td></tr>
+    <tr><td style="color:#1565C0;font-weight:600">Blue</td><td>Low influence — model largely ignored this area</td></tr>
+  </table>
+  <p>For a diseased leaf, the red zone should fall on the lesion or spot area. If it falls on the background or stem, the model may have learned the wrong features — a useful signal for improving your training data.</p>
+
+  <h3>How Grad-CAM works (step by step)</h3>
+  <ol class="steps">
+    <li><div><div class="step-title">Hook into the last conv layer</div><div class="step-desc">We access the <code>out_relu</code> layer inside MobileNetV2. This outputs a 7×7×1280 tensor — 1280 feature maps, each 7×7 pixels. These represent what the model "sees" in the image.</div></div></li>
+    <li><div><div class="step-title">Compute gradients</div><div class="step-desc">Using <code>tf.GradientTape</code>, we measure how much each position in those feature maps influenced the predicted class score. Large gradient = that area was important.</div></div></li>
+    <li><div><div class="step-title">Pool and weight</div><div class="step-desc">We average the gradients over space (Global Average Pooling) to get one importance score per channel. Then we multiply each of the 1280 feature maps by its importance score and sum them all together.</div></div></li>
+    <li><div><div class="step-title">Apply ReLU and normalise</div><div class="step-desc">Keep only positive values (areas that pushed the score upward) and normalise to [0,1]. This gives a 7×7 heatmap.</div></div></li>
+    <li><div><div class="step-title">Upsample and overlay</div><div class="step-desc">Resize the 7×7 heatmap to 224×224 using bilinear interpolation. Apply the jet colour map. Blend over the original image at 45% opacity.</div></div></li>
+  </ol>
+
+  <h3>Keras 3 compatibility note</h3>
+  <p>The standard Grad-CAM implementation uses <code>model.output</code> to build a gradient model. This fails in Keras 3 for Sequential models because they don't populate <code>_inbound_nodes</code> until called. Our implementation avoids this by:</p>
+  <ol class="steps">
+    <li><div><div class="step-title">Finding the MobileNetV2 sub-model</div><div class="step-desc">MobileNetV2 is always a Functional model — we can safely build a sub-model from its input to the target conv layer.</div></div></li>
+    <li><div><div class="step-title">Watching conv outputs explicitly</div><div class="step-desc">We run the feature extractor separately, call <code>tape.watch(conv_outputs)</code>, then manually thread through remaining layers.</div></div></li>
+    <li><div><div class="step-title">Computing gradients cleanly</div><div class="step-desc">Gradients of class_score with respect to conv_outputs flow through the explicit layer calls, giving correct Grad-CAM results without touching model.output.</div></div></li>
+  </ol>
+</div>
+
+<!-- ═══════════════════ CH 10 ═══════════════════ -->
+<div class="chapter" id="ch10">
+  <div class="chapter-label">Chapter 10</div>
+  <h2>How to Run the Project</h2>
+  <p class="chapter-sub">Step-by-step instructions to get the system running from scratch.</p>
+
+  <h3>Prerequisites</h3>
+  <table>
+    <tr><th>Requirement</th><th>Check command</th><th>Install command</th></tr>
+    <tr><td>Python 3.10+</td><td><code>python --version</code></td><td>Download from python.org</td></tr>
+    <tr><td>TensorFlow 2.15+</td><td><code>python -c "import tensorflow"</code></td><td><code>pip install tensorflow</code></td></tr>
+    <tr><td>OpenCV</td><td><code>python -c "import cv2"</code></td><td><code>pip install opencv-python</code></td></tr>
+    <tr><td>Jupyter</td><td><code>jupyter --version</code></td><td><code>pip install notebook</code></td></tr>
+    <tr><td>ipywidgets</td><td><code>python -c "import ipywidgets"</code></td><td><code>pip install ipywidgets</code></td></tr>
+  </table>
+
+  <h3>Folder structure required</h3>
+  <pre><code>your_project_folder/
+├── Plant_DISEASE_Main.ipynb    ← main notebook
+├── plant_identifier.keras      ← all 5 model files must be here
+├── Apple_disease.keras
+├── Potato_disease.keras
+├── Grape_disease.keras
+├── Pepper_disease.keras
+└── your_test_image.jpg         ← a leaf photo to test with</code></pre>
+
+  <h3>Running the notebook</h3>
+  <ol class="steps">
+    <li><div><div class="step-title">Open terminal in the project folder</div><div class="step-desc"><code>cd path/to/your_project_folder</code></div></div></li>
+    <li><div><div class="step-title">Start Jupyter</div><div class="step-desc">Run <code>jupyter notebook</code> — this opens a browser window automatically</div></div></li>
+    <li><div><div class="step-title">Open the notebook</div><div class="step-desc">Click on <code>Plant_DISEASE_Main.ipynb</code> in the browser file list</div></div></li>
+    <li><div><div class="step-title">Run all cells in order</div><div class="step-desc">Go to Kernel menu → "Restart &amp; Run All" — wait for each cell to complete</div></div></li>
+    <li><div><div class="step-title">Use the upload widget</div><div class="step-desc">The last cell shows an upload button. Click "Upload Leaf", select your leaf photo, then click "▶ Analyse"</div></div></li>
+  </ol>
+
+  <h3>Testing with Pepper (special case)</h3>
+  <p>Because Pepper is not in the Stage-1 training data, you must use the plant override dropdown in the upload widget — select "Pepper" from the dropdown before clicking Analyse. Or in code:</p>
+  <pre><code><span class="fn">show_combined</span>(<span class="st">"pepper_leaf.jpg"</span>, plant_override=<span class="st">"Pepper"</span>)</code></pre>
+
+  <h3>Photography tips for best results</h3>
+  <table>
+    <tr><th>Do this</th><th>Avoid this</th></tr>
+    <tr><td>Photograph one leaf at a time</td><td>Multiple overlapping leaves in frame</td></tr>
+    <tr><td>Hold leaf against plain white paper or your hand</td><td>Dark soil, rock, or complex background</td></tr>
+    <tr><td>Photograph in shade or overcast light</td><td>Direct sunlight causing glare spots</td></tr>
+    <tr><td>Fill the frame with the leaf</td><td>Leaf taking up less than 50% of frame</td></tr>
+    <tr><td>Lay the leaf flat</td><td>Leaf at steep angle or heavily curled</td></tr>
+  </table>
+</div>
+
+<!-- ═══════════════════ CH 11 ═══════════════════ -->
+<div class="chapter" id="ch11">
+  <div class="chapter-label">Chapter 11</div>
+  <h2>Common Errors &amp; Fixes</h2>
+  <p class="chapter-sub">Every error you are likely to encounter and exactly how to fix it.</p>
+
+  <h3>Error 1: FileNotFoundError on model load</h3>
+  <pre><code>FileNotFoundError: ... Apple_disease.keras not found</code></pre>
+  <p><strong>Cause:</strong> The model file is not in the same folder as the notebook.</p>
+  <p><strong>Fix:</strong> Move all five <code>.keras</code> files to the same folder as <code>Plant_DISEASE_Main.ipynb</code>.</p>
+
+  <h3>Error 2: Shape mismatch in confidence bar chart</h3>
+  <pre><code>Error: shape mismatch — arg 2 shape (6,) and arg 3 shape (5,)</code></pre>
+  <p><strong>Cause:</strong> Your class label list has a different number of items than the model's output neurons.</p>
+  <p><strong>Fix:</strong> Run the diagnostic cell from Chapter 7 to find which list is wrong. ImageDataGenerator assigns classes alphabetically, so your labels list must be in exact alphabetical order. For Stage-1: <code>["Apple", "Corn", "Grape", "Pepper", "Potato", "Tomato"]</code> (6 items matching 6 model outputs).</p>
+
+  <h3>Error 3: AttributeError on model.output (Keras 3)</h3>
+  <pre><code>AttributeError: The layer sequential_1 has never been called
+and thus has no defined output.</code></pre>
+  <p><strong>Cause:</strong> In Keras 3, Sequential models don't expose <code>model.output</code> until called. The old Grad-CAM code used this property.</p>
+  <p><strong>Fix:</strong> Use the updated <code>get_gradcam_heatmap()</code> from Step 5-A which avoids <code>model.output</code> entirely by manually threading through remaining layers.</p>
+
+  <h3>Error 4: Gradient is None in Grad-CAM</h3>
+  <pre><code>RuntimeError: Gradient is None — the conv layer output is not
+connected to the class score.</code></pre>
+  <p><strong>Cause:</strong> The <code>last_conv_layer_name</code> specified doesn't exist in the model, or the layer name has changed.</p>
+  <p><strong>Fix:</strong> Run this to find the correct layer name:</p>
+  <pre><code>base = _find_mobilenet_base(plant_model)
+<span class="cm"># Look for the last layer with 'relu' in its name</span>
+<span class="kw">for</span> layer <span class="kw">in</span> base.layers[-<span class="nm">10</span>:]:
+    <span class="kw">print</span>(layer.name, layer.output_shape)</code></pre>
+
+  <h3>Error 5: Low confidence warning</h3>
+  <pre><code>⚠ Low confidence (32.4%) — result may be unreliable</code></pre>
+  <p><strong>Cause:</strong> The uploaded image quality is poor, contains multiple leaves, or the plant is not in the training set.</p>
+  <p><strong>Fix:</strong> Follow the photography tips in Chapter 10. Make sure the leaf fills most of the frame with a plain background. The system still returns its best guess but warns you to treat it with caution.</p>
+
+  <h3>Error 6: cv2 not found</h3>
+  <pre><code>ModuleNotFoundError: No module named 'cv2'</code></pre>
+  <p><strong>Fix:</strong></p>
+  <pre><code>pip install opencv-python</code></pre>
+</div>
+
+<!-- ═══════════════════ CH 12 ═══════════════════ -->
+<div class="chapter" id="ch12">
+  <div class="chapter-label">Chapter 12</div>
+  <h2>Glossary</h2>
+  <p class="chapter-sub">Every technical term in this project, explained in plain language.</p>
+
+  <div class="gloss-item"><div class="gloss-term">Epoch</div><div class="gloss-def">One complete pass through all training images. Training for 10 epochs means the model sees every image 10 times, adjusting its weights each time.</div></div>
+  <div class="gloss-item"><div class="gloss-term">Accuracy</div><div class="gloss-def">The percentage of images the model classified correctly. 99% means it gets 99 out of 100 right.</div></div>
+  <div class="gloss-item"><div class="gloss-term">Validation accuracy</div><div class="gloss-def">Accuracy on images the model has never seen during training. This is the real measure of how well the model will work in the real world.</div></div>
+  <div class="gloss-item"><div class="gloss-term">Overfitting</div><div class="gloss-def">When a model memorises the training data instead of learning general patterns. It performs great on training images but poorly on new images. Dropout and BatchNorm help prevent this.</div></div>
+  <div class="gloss-item"><div class="gloss-term">Dropout</div><div class="gloss-def">A training technique that randomly turns off some neurons during each step. Forces the network not to rely on any single neuron — makes it more robust.</div></div>
+  <div class="gloss-item"><div class="gloss-term">BatchNormalization</div><div class="gloss-def">Normalises the output of a layer so values stay in a reasonable range. Makes training faster and more stable by preventing values from getting too large or too small.</div></div>
+  <div class="gloss-item"><div class="gloss-term">Softmax</div><div class="gloss-def">An activation function in the last layer that converts raw numbers to probabilities that sum to 1. Used so outputs are interpretable as confidence percentages.</div></div>
+  <div class="gloss-item"><div class="gloss-term">ReLU</div><div class="gloss-def">Rectified Linear Unit. An activation function: output = max(0, input). Without activation functions, a neural network would just be doing linear algebra and couldn't learn complex patterns.</div></div>
+  <div class="gloss-item"><div class="gloss-term">Weights</div><div class="gloss-def">The internal numbers of a neural network that get adjusted during training. A trained model is essentially a very large set of well-tuned weights — millions of them.</div></div>
+  <div class="gloss-item"><div class="gloss-term">.keras file</div><div class="gloss-def">The saved model file. Contains both the architecture (layer structure) and the trained weights. Load it with <code>tf.keras.models.load_model("file.keras")</code>.</div></div>
+  <div class="gloss-item"><div class="gloss-term">Transfer learning</div><div class="gloss-def">Re-using a model trained on one task (e.g. 14 million general images) as a starting point for a new related task (e.g. plant diseases). Much faster and requires far less data than training from scratch.</div></div>
+  <div class="gloss-item"><div class="gloss-term">Fine-tuning</div><div class="gloss-def">Phase 2 of transfer learning: unfreeze some of the base model's layers and retrain them at a very low learning rate so they adapt slightly to your specific domain.</div></div>
+  <div class="gloss-item"><div class="gloss-term">Frozen layers</div><div class="gloss-def">Layers whose weights are not updated during training. We freeze MobileNetV2's base to preserve its pre-learned visual knowledge and only train our custom head.</div></div>
+  <div class="gloss-item"><div class="gloss-term">preprocess_input</div><div class="gloss-def">A function from Keras that scales pixel values from [0–255] to [−1, 1], which is what MobileNetV2 was trained to expect. Skipping this step causes significantly worse accuracy.</div></div>
+  <div class="gloss-item"><div class="gloss-term">Grad-CAM</div><div class="gloss-def">Gradient-weighted Class Activation Mapping. A technique to visualise which parts of an input image caused a neural network to make its prediction. The output is a colour heatmap overlaid on the original image.</div></div>
+  <div class="gloss-item"><div class="gloss-term">GradientTape</div><div class="gloss-def">A TensorFlow tool that records operations as they execute, allowing gradients to be computed afterwards. Used in Grad-CAM to measure how much each pixel influenced the output class score.</div></div>
+  <div class="gloss-item"><div class="gloss-term">Feature map</div><div class="gloss-def">The intermediate output of a convolutional layer — a set of 2D grids, each one detecting a different visual feature (edges, textures, colours, patterns) at different positions in the image.</div></div>
+  <div class="gloss-item"><div class="gloss-term">DISEASE_REGISTRY</div><div class="gloss-def">A Python dictionary that maps plant names to their disease models and class label lists. The routing table of the entire pipeline. Adding a new plant requires only one new entry here.</div></div>
+  <div class="gloss-item"><div class="gloss-term">ImageDataGenerator</div><div class="gloss-def">A Keras utility that loads images from folders and applies augmentation on the fly during training. Assigns class indices alphabetically based on folder names — this alphabetical order must match your class labels list.</div></div>
+  <div class="gloss-item"><div class="gloss-term">ipywidgets</div><div class="gloss-def">A Python library for adding interactive UI elements (buttons, sliders, file uploaders) to Jupyter notebooks. We use it for the upload button interface in the main notebook.</div></div>
+  <div class="gloss-item"><div class="gloss-term">Sequential vs Functional API</div><div class="gloss-def">Two ways to build Keras models. Sequential stacks layers in a simple line. Functional is more flexible and allows complex connections. Our plant identifier uses Sequential; the Apple model uses Functional.</div></div>
+
+  <div class="box green" style="margin-top:28px"><strong>You have reached the end of the guide!</strong> The best way to learn this project is to run it, try different images, intentionally cause errors, and read the error messages. Every error teaches you something about how the system works. Feel free to ask any question — there are no stupid questions here.</div>
+</div>
+
+</div><!-- /container -->
+
+<div class="footer">
+  Plant Disease Detection System — Team Onboarding Guide<br>
+  Two-Stage AI Pipeline using MobileNetV2 Transfer Learning &amp; Grad-CAM Explainability
+</div>
+
+</body>
+</html>

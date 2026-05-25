@@ -1,79 +1,180 @@
-# Midori 🌿
-> AI-powered plant disease detection — MobileNetV2 + Grad-CAM
+# 🌿 Midori — AI Plant Disease Detector
 
-Midori is a full-stack application that diagnoses plant diseases from leaf photos. Upload an image and get an instant prediction with confidence score, disease details, and a Grad-CAM attention heatmap.
+> **Two-stage deep learning pipeline** · Plant ID → Disease Detection · Grad-CAM visualisation · Flutter mobile app · Django REST backend
 
 ---
 
-## Repository Structure
+## Architecture
 
 ```
-midori/
-├── server/                    # Django REST API + ML inference engine
-│   ├── config/                # Django project settings (WSGI, ASGI, URLs)
-│   │   └── settings/
-│   │       ├── base.py        # Shared settings
-│   │       ├── development.py # Local dev overrides
-│   │       └── production.py  # Production overrides
-│   ├── detections/            # Core detection app (ML pipeline, API views)
-│   │   └── engine.py          # MobileNetV2 inference + Grad-CAM
-│   ├── diseases/              # Disease catalog app
-│   ├── plants/                # Plant catalog app
-│   ├── requirements/
-│   │   ├── base.txt           # Core runtime deps (Django, DRF, Pillow)
-│   │   ├── ml.txt             # + TensorFlow, NumPy, h5py
-│   │   └── dev.txt            # + Jupyter, Matplotlib
-│   ├── scripts/
-│   │   └── smoke_test.py      # End-to-end API smoke test
-│   ├── manage.py
-│   ├── plant_disease_mobilenet.h5   # Trained model weights
-│   └── .env.example
+Photo → Stage 1 (MobileNetV2 Plant ID, 6 classes)
+      ↘ HSV leaf isolation (OpenCV)
+          ↘ Stage 2 (Per-plant Disease Model, 2–4 classes)
+              ↘ Grad-CAM heat-map for both stages
+```
+
+**Supported plants:** Apple · Corn · Grape · Potato · Tomato · Pepper  
+**Disease models:** Apple (4) · Grape (4) · Potato (3) · Pepper (2) · _Corn & Tomato = plant-only_
+
+---
+
+## Tech Stack
+
+| Layer    | Technology |
+|----------|-----------|
+| ML       | TensorFlow 2.21 · Keras 3 · OpenCV · MobileNetV2 |
+| Backend  | Django 5 · Django REST Framework · PostgreSQL |
+| Mobile   | Flutter 3 · Dart · Riverpod |
+| Python   | 3.13 |
+
+---
+
+## Project Structure
+
+```
+Plant_Disease_Detection/
+├── docs/
+│   ├── notebooks/          Research Jupyter notebooks (Apple, Grape, Pepper, Potato, Plant ID)
+│   └── reports/            HTML reference documents
 │
-└── mobile/                    # Flutter mobile client
-    ├── lib/
-    │   ├── main.dart
-    │   ├── core/
-    │   │   ├── theme/         # App theme (light/dark)
-    │   │   └── network/       # HTTP API client
-    │   └── features/
-    │       └── scan/          # Disease scan feature
-    │           ├── models/    # Data models (API response, history entry)
-    │           ├── screens/   # ScanScreen (main UI)
-    │           └── services/  # Local history persistence
-    └── assets/
-        └── ml/                # Bundled TFLite model
+├── server/                 Django REST API
+│   ├── apps/
+│   │   ├── detections/     Core detection app — engine, models, views, Grad-CAM
+│   │   ├── diseases/       Disease catalog (seeded from engine class labels)
+│   │   └── plants/         Plant catalog
+│   ├── config/             Django project settings, URLs, wsgi/asgi
+│   │   └── settings/       base.py · development.py · production.py
+│   ├── ml/
+│   │   ├── models/         Extracted .keras files  (gitignored — run setup_models.py)
+│   │   └── weights/        Source .keras.zip archives
+│   ├── scripts/
+│   │   ├── setup_models.py Extract .keras from weights/
+│   │   ├── smoke_test.py   Full two-stage API smoke test
+│   │   └── test_detection.py  Quick integration test (--image / --override)
+│   ├── requirements/
+│   │   ├── base.txt        Django + OpenCV + Pillow
+│   │   └── ml.txt          + TensorFlow 2.21 (Python 3.13)
+│   ├── constants.py        Thresholds, status messages
+│   ├── manage.py
+│   └── requirements.txt    → requirements/ml.txt shortcut
+│
+└── mobile/                 Flutter client app
+    └── lib/
+        ├── core/
+        │   ├── constants/  app_constants.dart  (timeouts, limits, status codes)
+        │   ├── network/    api_service.dart     (MidoriApiClient)
+        │   └── theme/      app_theme.dart       (AppTheme, AppColors)
+        └── features/scan/
+            ├── models/     detection_model.dart (DetectionResult, HistoryEntry)
+            ├── screens/    scan_screen.dart     (Scan + History tabs)
+            └── services/   history_service.dart (SharedPreferences)
 ```
 
 ---
 
 ## Quick Start
 
-### Server
+### Prerequisites
+- Python 3.13 (installed)
+- PostgreSQL running locally
+- Flutter SDK ≥ 3.5
+
+### 1. Backend — First Time Setup
+
 ```bash
 cd server
-python -m venv venv
-venv\Scripts\activate          # Windows
-pip install -r requirements/dev.txt
-cp .env.example .env           # fill in DB credentials
-python manage.py migrate
-python manage.py seed_model_catalog
-python manage.py runserver 0.0.0.0:8000
+
+# Install all dependencies (TF 2.21 + Django + OpenCV)
+py -m pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+# → Edit .env: fill in SECRET_KEY, DB_NAME, DB_USER, DB_PASSWORD
+
+# Extract Keras models from zips
+py scripts/setup_models.py
+
+# Apply DB migrations + seed plant/disease catalog
+py manage.py migrate
+py manage.py seed_model_catalog
+
+# Start dev server (port 8000, all interfaces)
+py manage.py runserver 0.0.0.0:8000
 ```
 
-### Mobile
+### 2. Verify Backend
+
+```bash
+# With server running:
+py scripts/smoke_test.py
+
+# Test with a real leaf image:
+py scripts/test_detection.py --image /path/to/leaf.jpg
+
+# Force a specific plant (skip Stage 1):
+py scripts/test_detection.py --image /path/to/leaf.jpg --override Potato
+```
+
+### 3. Mobile App
+
 ```bash
 cd mobile
 flutter pub get
-flutter run --dart-define=MIDORI_API_BASE_URL=http://<YOUR_LAN_IP>:8000
+
+# Android emulator (default):
+flutter run
+
+# Real device — set your server's LAN IP:
+flutter run --dart-define=MIDORI_SERVER_IP=192.168.x.x
+
+# Full base URL override:
+flutter run --dart-define=MIDORI_BASE_URL=http://192.168.x.x:8000
 ```
 
 ---
 
-## API Endpoints
+## API Reference
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET`  | `/api/detections/health/` | Model readiness check |
-| `POST` | `/api/detections/`        | Upload image, get prediction |
-| `GET`  | `/api/plants/`            | Plant catalog |
-| `GET`  | `/api/diseases/`          | Disease catalog |
+### `GET /api/detections/health/`
+```json
+{
+  "status": "ok",
+  "model_ready": true,
+  "pipeline": "two-stage",
+  "plant_classes": ["Apple", "Corn", "Grape", "Potato", "Tomato", "Pepper"],
+  "disease_models_loaded": ["Apple", "Potato", "Grape", "Pepper"]
+}
+```
+
+### `POST /api/detections/`
+
+**Form fields:**
+
+| Field | Type | Required | Notes |
+|-------|------|:--------:|-------|
+| `uploaded_image` | File | ✅ | JPEG/PNG/WebP, max 10 MB |
+| `plant_override` | String | ❌ | Skip Stage 1 (e.g. `Potato`) |
+
+**Response status values:**
+
+| `status` | Meaning |
+|---------|---------|
+| `success` | Disease detected with high confidence |
+| `healthy` | No disease signs detected |
+| `low_confidence` | Below 40 % confidence — retake recommended |
+| `not_recognized` | Stage-1 plant ID failed |
+| `no_model` | Plant found but no disease model exists |
+| `not_a_plant` | No green leaf detected in the image |
+| `failed` | Internal server error |
+
+---
+
+## Re-seeding the Database
+
+```bash
+# Full reseed (wipes detections, diseases, plants + clears media):
+py manage.py seed_model_catalog
+
+# Keep existing media files:
+py manage.py seed_model_catalog --keep-media
+```
