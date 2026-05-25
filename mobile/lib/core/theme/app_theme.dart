@@ -79,14 +79,14 @@ class AppTheme {
         letterSpacing: -0.3,
       ),
     ),
-    cardTheme: const CardThemeData(
+    cardTheme: CardThemeData(
       color: AppColors.white,
       surfaceTintColor: Colors.transparent,
       margin: EdgeInsets.zero,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(16)),
-        side: BorderSide(color: AppColors.gray200),
+        borderRadius: const BorderRadius.all(Radius.circular(18)),
+        side: BorderSide(color: AppColors.gray200.withValues(alpha: 0.8)),
       ),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
@@ -109,9 +109,13 @@ class AppTheme {
       ),
     ),
     navigationBarTheme: NavigationBarThemeData(
+      height: 68,
       backgroundColor: AppColors.white,
       surfaceTintColor: Colors.transparent,
       indicatorColor: AppColors.green50,
+      indicatorShape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       iconTheme: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
           return const IconThemeData(color: AppColors.green600);
@@ -185,14 +189,14 @@ class AppTheme {
         letterSpacing: -0.3,
       ),
     ),
-    cardTheme: const CardThemeData(
+    cardTheme: CardThemeData(
       color: AppColors.gray900,
       surfaceTintColor: Colors.transparent,
       margin: EdgeInsets.zero,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(16)),
-        side: BorderSide(color: AppColors.gray800),
+        borderRadius: const BorderRadius.all(Radius.circular(18)),
+        side: BorderSide(color: AppColors.gray800.withValues(alpha: 0.8)),
       ),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
@@ -215,9 +219,13 @@ class AppTheme {
       ),
     ),
     navigationBarTheme: NavigationBarThemeData(
+      height: 68,
       backgroundColor: AppColors.gray900,
       surfaceTintColor: Colors.transparent,
       indicatorColor: const Color(0xFF1B3A1B),
+      indicatorShape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       iconTheme: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
           return const IconThemeData(color: AppColors.green400);

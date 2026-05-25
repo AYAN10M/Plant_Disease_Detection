@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 import uuid
 from functools import lru_cache
 from pathlib import Path
@@ -133,14 +134,18 @@ def _build_model_files() -> dict:
     }
 
 
-# Evaluated lazily per request so tests / scripts can override ML_MODELS_DIR
+# Evaluated lazily per request so tests / scripts can override ML_MODELS_DIR.
+# Thread-safe: multiple Django workers may call this concurrently at startup.
 _MODEL_FILES_CACHE: dict | None = None
+_MODEL_FILES_LOCK = threading.Lock()
 
 
 def _MODEL_FILES() -> dict:          # type: ignore[override]
     global _MODEL_FILES_CACHE
     if _MODEL_FILES_CACHE is None:
-        _MODEL_FILES_CACHE = _build_model_files()
+        with _MODEL_FILES_LOCK:
+            if _MODEL_FILES_CACHE is None:  # double-checked locking
+                _MODEL_FILES_CACHE = _build_model_files()
     return _MODEL_FILES_CACHE
 
 
@@ -219,21 +224,14 @@ TREATMENT_ADVICE: dict[str, str] = {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Confidence thresholds
+# Confidence thresholds  (imported from the single source of truth)
 # ─────────────────────────────────────────────────────────────────────────────
 
-PLANT_CONF_THRESHOLD   = 40.0   # Stage-1 min confidence %
-DISEASE_CONF_THRESHOLD = 40.0   # Stage-2 global min confidence %
-
-# Per-plant disease thresholds (calibrated from diagnostic inference).
-# Grape model has systematic disease bias even on featureless images (~52-69%),
-# so we require higher confidence before calling a Grape disease result.
-DISEASE_CONF_THRESHOLDS: dict[str, float] = {
-    "Apple":  55.0,   # well-calibrated: defaults healthy, raise bar slightly
-    "Potato": 55.0,   # well-calibrated: defaults healthy, raise bar slightly
-    "Grape":  75.0,   # biased model: dark images trigger Esca at ~88% — needs high bar
-    "Pepper": 55.0,   # well-calibrated: defaults healthy, raise bar slightly
-}
+from constants import (
+    PLANT_CONF_THRESHOLD,
+    DISEASE_CONF_THRESHOLD,
+    DISEASE_CONF_THRESHOLDS,
+)
 
 LAST_CONV_LAYER = "out_relu"    # Last ReLU in MobileNetV2 — valid for all 5 models
 
@@ -277,6 +275,12 @@ def preprocess_image(image_path: str, target_size: tuple = (224, 224)) -> np.nda
 
     if cv2 is not None:
         img_bgr = cv2.imread(image_path)
+        if img_bgr is None:
+            logger.warning(
+                "[Midori] cv2.imread returned None for '%s' — "
+                "file may be missing, corrupt, or not an image.",
+                image_path,
+            )
         if img_bgr is not None:
             img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
 
@@ -571,8 +575,9 @@ def identify_plant(image_path: str) -> tuple[str, float, list, str | None]:
     model = _get_plant_model()
 
     img_array = preprocess_image(image_path)
-    # Use predict() to exactly match the notebook inference path
-    raw_preds = model.predict(img_array, verbose=0)[0]
+    # Direct model call — faster than predict() for single-image inference.
+    # predict() adds overhead (batch logic, progress callbacks) not needed here.
+    raw_preds = model(img_array, training=False).numpy()[0]
 
     pred_idx   = int(np.argmax(raw_preds))
     confidence = float(raw_preds[pred_idx]) * 100.0
@@ -635,8 +640,8 @@ def detect_disease(
         )
 
     img_array = preprocess_image(image_path)
-    # Use predict() to exactly match the notebook inference path
-    raw_preds = disease_model.predict(img_array, verbose=0)[0]
+    # Direct model call — faster than predict() for single-image inference.
+    raw_preds = disease_model(img_array, training=False).numpy()[0]
 
     pred_idx   = int(np.argmax(raw_preds))
     confidence = float(raw_preds[pred_idx]) * 100.0
@@ -696,7 +701,7 @@ def run_prediction(
 
     # ── Stage 1 ──────────────────────────────────────────────────────────────
     if plant_override:
-        plant_name       = plant_override.strip().capitalize()
+        plant_name       = plant_override.strip().title()
         plant_confidence = 100.0
         plant_scores     = [(plant_name, 100.0)]
         plant_gradcam_path: str | None = None

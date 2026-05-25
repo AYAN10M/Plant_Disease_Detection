@@ -1,6 +1,9 @@
 """
-Midori — Application-wide constants
-=====================================
+Midori — Application-wide constants (Single Source of Truth)
+=============================================================
+All thresholds, status messages, and configuration values used across the
+server codebase should be defined here and imported by other modules.
+
 Import with:
     from constants import PLANT_CONF_THRESHOLD, DISEASE_CONF_THRESHOLD, ...
 """
@@ -9,6 +12,16 @@ Import with:
 
 PLANT_CONF_THRESHOLD   = 40.0   # Stage-1 : below this % → status = not_recognized
 DISEASE_CONF_THRESHOLD = 40.0   # Stage-2 : below this % → status = low_confidence
+
+# Per-plant disease thresholds (calibrated from diagnostic inference).
+# Grape model has systematic disease bias even on featureless images (~52-69%),
+# so we require higher confidence before calling a Grape disease result.
+DISEASE_CONF_THRESHOLDS: dict[str, float] = {
+    "Apple":  55.0,   # well-calibrated: defaults healthy, raise bar slightly
+    "Potato": 55.0,   # well-calibrated: defaults healthy, raise bar slightly
+    "Grape":  75.0,   # biased model: dark images trigger Esca at ~88% — needs high bar
+    "Pepper": 55.0,   # well-calibrated: defaults healthy, raise bar slightly
+}
 
 # Legacy alias used in a few older scripts
 CONFIDENCE_THRESHOLD = DISEASE_CONF_THRESHOLD / 100.0  # 0.40 (0–1 scale)
