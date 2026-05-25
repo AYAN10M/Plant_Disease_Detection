@@ -2,19 +2,18 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../models/detection_model.dart';
 
 /// Persists detection history to SharedPreferences as a JSON list.
 ///
 /// All I/O is hardened: corrupt entries are skipped rather than crashing the
-/// app, and the list is capped at [_maxEntries] to keep storage small.
+/// app, and the list is capped at [AppConstants.maxHistoryEntries] to keep
+/// storage small.
 class DetectionHistoryStore {
-  static const _historyKey  = 'detection_history';
-  static const _maxEntries  = 50; // matches constants.MAX_DETECTION_HISTORY
-
   Future<List<DetectionHistoryEntry>> loadEntries() async {
     final prefs   = await SharedPreferences.getInstance();
-    final encoded = prefs.getString(_historyKey);
+    final encoded = prefs.getString(AppConstants.historyPrefsKey);
     if (encoded == null || encoded.isEmpty) return [];
 
     List<dynamic> raw;
@@ -22,7 +21,7 @@ class DetectionHistoryStore {
       raw = jsonDecode(encoded) as List<dynamic>;
     } catch (_) {
       // Stored JSON is corrupt — start fresh rather than crashing.
-      await prefs.remove(_historyKey);
+      await prefs.remove(AppConstants.historyPrefsKey);
       return [];
     }
 
@@ -44,8 +43,11 @@ class DetectionHistoryStore {
     entries.insert(0, entry);
 
     final prefs   = await SharedPreferences.getInstance();
-    final limited = entries.take(_maxEntries).map((e) => e.toJson()).toList();
-    await prefs.setString(_historyKey, jsonEncode(limited));
+    final limited = entries
+        .take(AppConstants.maxHistoryEntries)
+        .map((e) => e.toJson())
+        .toList();
+    await prefs.setString(AppConstants.historyPrefsKey, jsonEncode(limited));
   }
 
   Future<void> deleteEntry(DetectionHistoryEntry entry) async {
@@ -54,13 +56,14 @@ class DetectionHistoryStore {
     entries.removeWhere((e) => e.createdAt.toIso8601String() == key);
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_historyKey, jsonEncode(
-      entries.map((e) => e.toJson()).toList(),
-    ));
+    await prefs.setString(
+      AppConstants.historyPrefsKey,
+      jsonEncode(entries.map((e) => e.toJson()).toList()),
+    );
   }
 
   Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_historyKey);
+    await prefs.remove(AppConstants.historyPrefsKey);
   }
 }

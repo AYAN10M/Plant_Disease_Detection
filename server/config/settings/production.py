@@ -1,6 +1,6 @@
 """
 Midori — Production settings.
-Set DJANGO_SETTINGS_MODULE=core.settings.production in your server env.
+Set DJANGO_SETTINGS_MODULE=config.settings.production in your server env.
 """
 from .base import *  # noqa: F401, F403
 import os

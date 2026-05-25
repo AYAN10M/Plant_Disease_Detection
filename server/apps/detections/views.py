@@ -7,7 +7,7 @@ from rest_framework.views import APIView
 from diseases.models import Disease
 from plants.models import Plant
 
-from .engine import PLANT_CLASSES, run_prediction
+from .engine import DISEASE_CLASSES, PLANT_CLASSES, run_prediction
 from .models import Detection
 from .serializers import DetectionCreateSerializer, DetectionResultSerializer
 
@@ -47,7 +47,10 @@ class HealthView(APIView):
             "status":                "ok",
             "model_ready":           model_ready,
             "pipeline":              "two-stage",
-            "plant_classes":         PLANT_CLASSES,
+            # all_plant_classes — the 6 labels the Stage-1 identifier knows
+            "all_plant_classes":     PLANT_CLASSES,
+            # supported_plants — only the 4 with a disease model
+            "supported_plants":      list(DISEASE_CLASSES.keys()),
             "disease_models_loaded": loaded_diseases,
         })
 
@@ -69,6 +72,7 @@ class DetectView(APIView):
 
         uploaded_image = serializer.validated_data["uploaded_image"]
         plant_override = serializer.validated_data.get("plant_override", "") or None
+        confidence_threshold = serializer.validated_data.get("confidence_threshold", 40.0)
 
         # ── Persist Detection record (we need the file path for the ML engine) ──
         detection = Detection.objects.create(
@@ -82,6 +86,7 @@ class DetectView(APIView):
             result = run_prediction(
                 image_path=detection.uploaded_image.path,
                 plant_override=plant_override,
+                confidence_threshold=confidence_threshold,
             )
         except Exception as exc:
             logger.error("[Midori] run_prediction unhandled error: %s", exc, exc_info=True)
@@ -120,8 +125,9 @@ class DetectView(APIView):
             if db_plant:
                 detection.plant = db_plant
 
-        # ── Resolve Disease DB record (only on success) ───────────────────────
-        if result["status"] == "success" and result.get("disease_name"):
+        # ── Resolve Disease DB record (success AND healthy both need this) ──────
+        resolvable_statuses = {"success", "healthy", "low_confidence"}
+        if result["status"] in resolvable_statuses and result.get("disease_name"):
             disease_name = result["disease_name"]
             if detection.plant:
                 db_disease = Disease.objects.filter(
@@ -141,11 +147,17 @@ class DetectView(APIView):
         serialized = DetectionResultSerializer(
             detection, context={"request": request}
         )
+        # is_healthy is True when the engine explicitly says so OR
+        # when the top disease class is 'Healthy' (status='success' path).
+        disease_name = result.get("disease_name") or ""
+        is_healthy = result.get("is_healthy", False) or disease_name.lower() == "healthy"
         return Response(
             {
-                "status":  result["status"],
-                "message": result.get("message", ""),
-                "data":    serialized.data,
+                "status":       result["status"],
+                "message":      result.get("message", ""),
+                "is_healthy":   is_healthy,
+                "disease_name": disease_name or None,
+                "data":         serialized.data,
             },
             status=status.HTTP_200_OK,
         )

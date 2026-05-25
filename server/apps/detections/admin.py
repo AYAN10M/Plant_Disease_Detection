@@ -4,13 +4,6 @@ from diseases.models import Disease
 from .models import Detection
 
 
-class DiseaseInline(admin.TabularInline):
-    model  = Disease
-    extra  = 0
-    fields = ["name", "severity", "cause", "remedy"]
-    readonly_fields = ["name", "severity"]
-
-
 @admin.register(Detection)
 class DetectionAdmin(admin.ModelAdmin):
     list_display   = [

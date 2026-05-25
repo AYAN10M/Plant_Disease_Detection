@@ -34,9 +34,10 @@ class AppConstants {
   static const int maxHistoryEntries = 50;
   static const String historyPrefsKey = 'detection_history';
 
-  // ── Plant override options (must match server PLANT_CLASSES) ───────────────
+  // ── Plant override options — ONLY plants that have a disease model ─────────
+  // Corn and Tomato are excluded: no disease model exists for them.
   static const List<String> plantOverrideOptions = [
-    'Apple', 'Corn', 'Grape', 'Potato', 'Tomato', 'Pepper',
+    'Apple', 'Grape', 'Potato', 'Pepper',
   ];
 
   // ── Confidence thresholds (mirror server thresholds) ──────────────────────

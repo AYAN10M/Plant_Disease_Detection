@@ -223,7 +223,17 @@ TREATMENT_ADVICE: dict[str, str] = {
 # ─────────────────────────────────────────────────────────────────────────────
 
 PLANT_CONF_THRESHOLD   = 40.0   # Stage-1 min confidence %
-DISEASE_CONF_THRESHOLD = 40.0   # Stage-2 min confidence %
+DISEASE_CONF_THRESHOLD = 40.0   # Stage-2 global min confidence %
+
+# Per-plant disease thresholds (calibrated from diagnostic inference).
+# Grape model has systematic disease bias even on featureless images (~52-69%),
+# so we require higher confidence before calling a Grape disease result.
+DISEASE_CONF_THRESHOLDS: dict[str, float] = {
+    "Apple":  55.0,   # well-calibrated: defaults healthy, raise bar slightly
+    "Potato": 55.0,   # well-calibrated: defaults healthy, raise bar slightly
+    "Grape":  75.0,   # biased model: dark images trigger Esca at ~88% — needs high bar
+    "Pepper": 55.0,   # well-calibrated: defaults healthy, raise bar slightly
+}
 
 LAST_CONV_LAYER = "out_relu"    # Last ReLU in MobileNetV2 — valid for all 5 models
 
@@ -231,6 +241,28 @@ LAST_CONV_LAYER = "out_relu"    # Last ReLU in MobileNetV2 — valid for all 5 m
 # ─────────────────────────────────────────────────────────────────────────────
 # Image preprocessing
 # ─────────────────────────────────────────────────────────────────────────────
+
+def _normalize_brightness(img_rgb: np.ndarray) -> np.ndarray:
+    """
+    Adaptively brighten dark leaf images before inference.
+
+    The Grape disease model predicts Esca at up to 88% confidence on dark or
+    underexposed images (confirmed by diagnostic).  Normalising to a target mean
+    brightness of ~130 reduces this artefact without distorting well-exposed images.
+
+    Only applied when the image mean brightness is below 80 to leave well-lit
+    photos completely unchanged.
+    """
+    mean_brightness = float(img_rgb.mean())
+    if mean_brightness < 80.0 and mean_brightness > 1.0:
+        scale = 130.0 / mean_brightness
+        img_rgb = np.clip(img_rgb.astype(np.float32) * scale, 0, 255).astype(np.uint8)
+        logger.debug(
+            "[Midori] Brightness normalised: mean %.1f → %.1f",
+            mean_brightness, float(img_rgb.mean()),
+        )
+    return img_rgb
+
 
 def preprocess_image(image_path: str, target_size: tuple = (224, 224)) -> np.ndarray:
     """
@@ -247,6 +279,9 @@ def preprocess_image(image_path: str, target_size: tuple = (224, 224)) -> np.nda
         img_bgr = cv2.imread(image_path)
         if img_bgr is not None:
             img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+
+            # Normalise brightness before any colour-based isolation
+            img_rgb = _normalize_brightness(img_rgb)
             h, w    = img_rgb.shape[:2]
 
             # ── HSV green isolation (hue 25–95) ───────────────────────────
@@ -291,7 +326,10 @@ def preprocess_image(image_path: str, target_size: tuple = (224, 224)) -> np.nda
     # ── Fallback: simple PIL resize (no OpenCV) ───────────────────────────
     logger.warning("[Midori] OpenCV not available — using simple PIL preprocessing.")
     with Image.open(image_path) as raw:
-        img_pil = raw.convert("RGB").resize(target_size, Image.BICUBIC)
+        img_pil = raw.convert("RGB")
+        img_arr_raw = np.array(img_pil, dtype=np.uint8)
+        img_arr_raw = _normalize_brightness(img_arr_raw)
+        img_pil = Image.fromarray(img_arr_raw).resize(target_size, Image.BICUBIC)
     img_arr = np.array(img_pil, dtype=np.float32)
     img_arr = _mobilenet_preprocess(img_arr)
     return np.expand_dims(img_arr, axis=0)
@@ -560,18 +598,19 @@ def identify_plant(image_path: str) -> tuple[str, float, list, str | None]:
 def detect_disease(
     image_path: str,
     plant_name: str,
-) -> tuple[str | None, float, list, str, str | None, bool]:
+) -> tuple[str | None, float, list, str, str | None, bool, float]:
     """
     Stage 2: Detect disease for the identified plant.
 
     Returns
     -------
-    disease_name    : str | None
-    confidence      : float       Confidence %  (0–100)
-    all_scores      : list        [(name, pct), ...]
-    advice          : str         Treatment recommendation
-    gradcam_path    : str | None  Relative media path to Stage-2 Grad-CAM PNG
-    has_model       : bool        False when no disease model exists for this plant
+    disease_name          : str | None
+    confidence            : float       Confidence %  (0–100)
+    all_scores            : list        [(name, pct), ...]
+    advice                : str         Treatment recommendation
+    gradcam_path          : str | None  Relative media path to Stage-2 Grad-CAM PNG
+    has_model             : bool        False when no disease model exists for this plant
+    per_plant_threshold   : float       Calibrated confidence threshold for this plant
     """
     tf = _import_tf()
 
@@ -587,6 +626,7 @@ def detect_disease(
             "No disease model available for this plant.",
             None,
             False,
+            DISEASE_CONF_THRESHOLDS.get(plant_name, DISEASE_CONF_THRESHOLD),
         )
 
     img_array = preprocess_image(image_path)
@@ -605,6 +645,9 @@ def detect_disease(
 
     logger.info("[Midori] Stage 2: %s  (%.1f%%)", disease, confidence)
 
+    # Retrieve per-plant threshold (fallback to global)
+    per_plant_threshold = DISEASE_CONF_THRESHOLDS.get(plant_name, DISEASE_CONF_THRESHOLD)
+
     # Stage-2 Grad-CAM
     gradcam_path: str | None = None
     try:
@@ -615,7 +658,7 @@ def detect_disease(
     except Exception as exc:
         logger.warning("[Midori] Stage-2 Grad-CAM error: %s", exc)
 
-    return disease, confidence, all_scores, advice, gradcam_path, True
+    return disease, confidence, all_scores, advice, gradcam_path, True, per_plant_threshold
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -625,16 +668,17 @@ def detect_disease(
 def run_prediction(
     image_path: str,
     plant_override: str | None = None,
+    confidence_threshold: float | None = None,
 ) -> dict:
     """
     Run the full two-stage detection pipeline.
 
     Parameters
     ----------
-    image_path     : str           Absolute path to the uploaded image.
-    plant_override : str | None    Skip Stage 1 — force this plant name.
-                                   Required for plants absent from Stage-1 training
-                                   (e.g. Pepper, if it was not in Stage-1 data).
+    image_path           : str           Absolute path to the uploaded image.
+    plant_override       : str | None    Skip Stage 1 — force this plant name.
+    confidence_threshold : float | None  Stage-1 min confidence % (0-100).
+                                         Defaults to PLANT_CONF_THRESHOLD (40%).
 
     Returns  dict with keys
     --------
@@ -643,6 +687,7 @@ def run_prediction(
     advice, is_healthy, disease_gradcam_path,
     status, message
     """
+    threshold = confidence_threshold if confidence_threshold is not None else PLANT_CONF_THRESHOLD
 
     # ── Stage 1 ──────────────────────────────────────────────────────────────
     if plant_override:
@@ -662,10 +707,10 @@ def run_prediction(
                 message="Plant identification failed due to an internal error.",
             )
 
-        if plant_confidence < PLANT_CONF_THRESHOLD:
+        if plant_confidence < threshold:
             logger.info(
                 "[Midori] Stage-1 confidence too low: %.1f%% < %.1f%%",
-                plant_confidence, PLANT_CONF_THRESHOLD,
+                plant_confidence, threshold,
             )
             return _result(
                 plant_name=plant_name,
@@ -683,7 +728,8 @@ def run_prediction(
     # ── Stage 2 ──────────────────────────────────────────────────────────────
     try:
         (disease_name, disease_confidence, disease_scores,
-         advice, disease_gradcam_path, has_model) = detect_disease(image_path, plant_name)
+         advice, disease_gradcam_path, has_model,
+         disease_threshold) = detect_disease(image_path, plant_name)
     except Exception as exc:
         logger.error("[Midori] Stage-2 error: %s", exc, exc_info=True)
         return _result(
@@ -710,7 +756,11 @@ def run_prediction(
 
     is_healthy = "healthy" in disease_name.lower()
 
-    if not is_healthy and disease_confidence < DISEASE_CONF_THRESHOLD:
+    if not is_healthy and disease_confidence < disease_threshold:
+        logger.info(
+            "[Midori] Stage-2 confidence below threshold for %s: %.1f%% < %.1f%%",
+            plant_name, disease_confidence, disease_threshold,
+        )
         return _result(
             plant_name=plant_name,
             plant_confidence=plant_confidence,

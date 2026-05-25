@@ -7,8 +7,7 @@ import 'dart:typed_data';
 
 /// Convert a raw model class label to a human-readable string.
 /// e.g. "Apple___Apple_scab" → "Apple scab"
-String humanizeModelLabel(String label) {
-  // Strip everything up to and including "___" or "__"
+String _humanizeModelLabel(String label) {
   final cleaned = label.replaceAll(RegExp(r'^.*?_{2,}'), '');
   return cleaned.replaceAll('_', ' ').trim();
 }
@@ -88,7 +87,7 @@ class DetectionResult {
 
     String? diseaseName;
     if (detail != null && detail['name'] != null) {
-      diseaseName = humanizeModelLabel(detail['name'] as String);
+      diseaseName = _humanizeModelLabel(detail['name'] as String);
     }
 
     // plant_scores  [{"name": "Apple", "confidence": 0.873}, ...]
@@ -141,23 +140,37 @@ class DetectionApiResponse {
   final String status;
   final String? message;
   final DetectionResult? data;
+  final bool isHealthy;          // top-level from API (reliable even w/o disease_detail)
+  final String? rawDiseaseName;  // top-level raw disease name from engine
 
   const DetectionApiResponse({
     required this.status,
     this.message,
     this.data,
+    this.isHealthy = false,
+    this.rawDiseaseName,
   });
 
   factory DetectionApiResponse.fromJson(Map<String, dynamic> json) {
     final rawData = json['data'];
     return DetectionApiResponse(
-      status:  json['status']  as String? ?? 'failed',
-      message: json['message'] as String?,
+      status:         json['status']       as String? ?? 'failed',
+      message:        json['message']      as String?,
+      isHealthy:      json['is_healthy']   as bool?   ?? false,
+      rawDiseaseName: json['disease_name'] as String?,
       data:    rawData is Map<String, dynamic>
                   ? DetectionResult.fromJson(rawData)
                   : null,
     );
   }
+
+  /// True if this result represents a healthy plant by any signal.
+  bool get effectivelyHealthy =>
+      isHealthy ||
+      status == 'healthy' ||
+      rawDiseaseName?.toLowerCase() == 'healthy' ||
+      (data?.diseaseName?.toLowerCase() == 'healthy') ||
+      (data?.isHealthy ?? false);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

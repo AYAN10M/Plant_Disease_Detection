@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/network/api_service.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../main.dart' show themeModeNotifier;
 import '../models/detection_model.dart';
@@ -53,11 +54,11 @@ class _ScanScreenState extends State<ScanScreen>
   String?               _scanFeedbackMessage;
   bool                  _scanFeedbackIsError = false;
 
-  // Plant override dropdown
+  // Plant override dropdown — sourced from AppConstants (disease-model plants only)
   String? _selectedPlantOverride;   // null == Auto-detect
-  static const _plantOverrides = [
-    'Apple', 'Corn', 'Grape', 'Potato', 'Tomato', 'Pepper',
-  ];
+
+  // Confidence slider (matches notebook's Min Conf % slider)
+  double _minConfidence = 40.0;   // 0–100 %
 
   // ── History state ──────────────────────────────────────────────────────────
   bool    _loadingHistory      = false;
@@ -294,8 +295,7 @@ class _ScanScreenState extends State<ScanScreen>
       return;
     }
 
-    const tenMB = 10 * 1024 * 1024;
-    if (_selectedImageBytes!.lengthInBytes > tenMB) {
+    if (_selectedImageBytes!.lengthInBytes > AppConstants.maxImageBytes) {
       _setScanFeedback('Image is too large (max 10 MB). Please choose a smaller photo.',
           isError: true);
       return;
@@ -330,9 +330,10 @@ class _ScanScreenState extends State<ScanScreen>
           : 'leaf.jpg';
 
       final response = await _apiClient.detectImage(
-        imageBytes:    _selectedImageBytes!,
-        filename:      filename,
-        plantOverride: _selectedPlantOverride,
+        imageBytes:          _selectedImageBytes!,
+        filename:            filename,
+        plantOverride:       _selectedPlantOverride,
+        confidenceThreshold: _minConfidence,
       );
 
       if (!mounted) return;
@@ -509,6 +510,8 @@ class _ScanScreenState extends State<ScanScreen>
               padding: _responsivePadding(constraints).copyWith(bottom: 32),
               children: [
                 _buildPlantOverrideDropdown(),
+                const SizedBox(height: 8),
+                _buildConfidenceSlider(),
                 const SizedBox(height: 12),
                 _buildImageCard(),
                 if (_detecting) ...[
@@ -574,7 +577,7 @@ class _ScanScreenState extends State<ScanScreen>
                 value: null,
                 child: Text('Auto-detect  (Stage 1 runs)'),
               ),
-              ..._plantOverrides.map(
+              ...AppConstants.plantOverrideOptions.map(
                 (p) => DropdownMenuItem<String?>(value: p, child: Text(p)),
               ),
             ],
@@ -582,6 +585,103 @@ class _ScanScreenState extends State<ScanScreen>
           ),
         ),
       ],
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Confidence slider
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Widget _buildConfidenceSlider() {
+    final theme   = Theme.of(context);
+    final isDark  = theme.brightness == Brightness.dark;
+    final accent  = AppColors.green500;
+    final bgColor = isDark ? AppColors.gray800 : AppColors.green50;
+    final border  = isDark ? AppColors.gray700 : AppColors.green100;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color:        bgColor,
+        borderRadius: BorderRadius.circular(12),
+        border:       Border.all(color: border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.tune_rounded, size: 15, color: accent),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'Min Confidence',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                decoration: BoxDecoration(
+                  color:        accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${_minConfidence.round()}%',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize:   13,
+                    color:      accent,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight:          3,
+              thumbShape:           const RoundSliderThumbShape(enabledThumbRadius: 8),
+              overlayShape:         const RoundSliderOverlayShape(overlayRadius: 18),
+              activeTrackColor:     accent,
+              inactiveTrackColor:   accent.withValues(alpha: 0.18),
+              thumbColor:           accent,
+              overlayColor:         accent.withValues(alpha: 0.15),
+              tickMarkShape:        const RoundSliderTickMarkShape(tickMarkRadius: 2.5),
+              activeTickMarkColor:  Colors.white,
+              inactiveTickMarkColor: accent.withValues(alpha: 0.4),
+            ),
+            child: Slider(
+              value:     _minConfidence,
+              min:       0,
+              max:       100,
+              divisions: 20,            // steps of 5%
+              onChanged: (v) => setState(() => _minConfidence = v),
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: ['0%', '25%', '50%', '75%', '100%']
+                .map((t) => Text(t,
+                    style: TextStyle(fontSize: 10, color: Colors.grey.shade500)))
+                .toList(),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _minConfidence < 20
+                ? 'Very lenient — almost any image accepted'
+                : _minConfidence < 40
+                    ? 'Lenient — accepts uncertain identifications'
+                    : _minConfidence < 60
+                        ? 'Balanced — recommended for most images'
+                        : _minConfidence < 80
+                            ? 'Strict — requires clear, well-lit photos'
+                            : 'Very strict — only high-quality photos pass',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+          ),
+        ],
+      ),
     );
   }
 
@@ -752,14 +852,13 @@ class _ScanScreenState extends State<ScanScreen>
             const SizedBox(height: 12),
 
             // ── Stage 2 — Disease confidence ─────────────────────────────
-            if (result.diseaseName != null || result.isHealthy) ...[
+            if (result.diseaseName != null || response.effectivelyHealthy) ...[
               _buildStageConfidenceBar(
                 stageLabel:  'Stage 2 — Disease',
-                label:       result.isHealthy
+                label:       response.effectivelyHealthy
                     ? 'Healthy 🌱'
                     : (result.diseaseName ?? 'Unknown'),
                 confidence:  result.confidence,
-                isDisease:   !result.isHealthy,
                 gradcamBytes: _diseaseGradcamBytes,
               ),
               const SizedBox(height: 16),
@@ -780,14 +879,14 @@ class _ScanScreenState extends State<ScanScreen>
               _buildAllScoresSection(
                 title:     'Disease detection scores',
                 scores:    result.diseaseScores,
-                winnerName: result.isHealthy ? 'Healthy' : (result.diseaseName ?? ''),
+                winnerName: response.effectivelyHealthy ? 'Healthy' : (result.diseaseName ?? ''),
                 isDisease: true,
               ),
               const SizedBox(height: 16),
             ],
 
-            // ── Disease details ───────────────────────────────────────────
-            if (!result.isHealthy &&
+            // ── Disease details (only for actual diseases, not healthy) ──────────
+            if (!response.effectivelyHealthy &&
                 response.status != 'not_recognized' &&
                 response.status != 'no_model') ...[
               _buildDetailGroup(
@@ -831,7 +930,7 @@ class _ScanScreenState extends State<ScanScreen>
             ],
 
             // ── Healthy care tips ─────────────────────────────────────────
-            if (result.isHealthy) ...[
+            if (response.effectivelyHealthy) ...[
               _buildDetailGroup(
                 title: 'Keep it healthy 🌿',
                 children: const [
@@ -875,27 +974,40 @@ class _ScanScreenState extends State<ScanScreen>
               ),
             ],
 
-            // ── Retake button ─────────────────────────────────────────────
+            // ── Retake / scan-again buttons ────────────────────────────────
+            const SizedBox(height: 14),
+
+            // Prominent orange "Retake" only on low-quality results
             if (response.status == 'low_confidence' ||
                 response.status == 'not_recognized') ...[
-              const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFD84315),
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(double.infinity, 46),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                  ),
-                  onPressed: _retakePhoto,
-                  icon:  const Icon(Icons.camera_alt_rounded),
-                  label: const Text('Retake Photo',
-                      style: TextStyle(fontWeight: FontWeight.w700)),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFD84315),
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 46),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
                 ),
+                onPressed: _retakePhoto,
+                icon:  const Icon(Icons.camera_alt_rounded),
+                label: const Text('Retake Photo',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
               ),
+              const SizedBox(height: 8),
             ],
+
+            // Always available: scan a different leaf
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 46),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: _retakePhoto,
+              icon:  const Icon(Icons.refresh_rounded),
+              label: const Text('Scan Another Leaf',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
           ],
         ),
       ),
@@ -913,11 +1025,27 @@ class _ScanScreenState extends State<ScanScreen>
 
     switch (response.status) {
       case 'healthy':
-        bg     = const Color(0xFF2E7D32).withValues(alpha: 0.10);
-        border = const Color(0xFF2E7D32).withValues(alpha: 0.35);
-        fg     = const Color(0xFF2E7D32);
+        bg     = AppColors.green600.withValues(alpha: 0.10);
+        border = AppColors.green600.withValues(alpha: 0.35);
+        fg     = AppColors.green600;
         icon   = Icons.check_circle_rounded;
         title  = 'Healthy Plant — No disease detected! 🌱';
+        break;
+      case 'success':
+        // Backend returns status='success' even when disease_name is 'Healthy'
+        if (response.effectivelyHealthy) {
+          bg     = AppColors.green600.withValues(alpha: 0.10);
+          border = AppColors.green600.withValues(alpha: 0.35);
+          fg     = AppColors.green600;
+          icon   = Icons.check_circle_rounded;
+          title  = 'Healthy Plant — No disease detected! 🌱';
+        } else {
+          bg     = const Color(0xFF1565C0).withValues(alpha: 0.08);
+          border = const Color(0xFF1565C0).withValues(alpha: 0.28);
+          fg     = const Color(0xFF1565C0);
+          icon   = Icons.biotech_rounded;
+          title  = result.diseaseName ?? 'Disease Detected';
+        }
         break;
       case 'not_recognized':
         bg     = const Color(0xFF6A1B9A).withValues(alpha: 0.08);
@@ -940,7 +1068,7 @@ class _ScanScreenState extends State<ScanScreen>
         icon   = Icons.warning_amber_rounded;
         title  = 'Low Confidence — Retake Recommended';
         break;
-      default: // success
+      default:
         bg     = const Color(0xFF1565C0).withValues(alpha: 0.08);
         border = const Color(0xFF1565C0).withValues(alpha: 0.28);
         fg     = const Color(0xFF1565C0);
@@ -989,12 +1117,11 @@ class _ScanScreenState extends State<ScanScreen>
     required String stageLabel,
     required String label,
     required double confidence,
-    bool isDisease = false,
     Uint8List? gradcamBytes,
   }) {
     final pct   = confidence * 100;
     final color = pct >= 80
-        ? const Color(0xFF2E7D32)
+        ? AppColors.green600
         : pct >= 55
             ? const Color(0xFFF9A825)
             : const Color(0xFFD84315);
@@ -1064,7 +1191,7 @@ class _ScanScreenState extends State<ScanScreen>
         final isWinner  = score.name.toLowerCase() == winnerName.toLowerCase();
         final barColor  = isWinner
             ? (pct >= 80
-                ? const Color(0xFF2E7D32)
+                ? AppColors.green600
                 : pct >= 55
                     ? const Color(0xFFF9A825)
                     : const Color(0xFFD84315))
@@ -1504,7 +1631,7 @@ class _ScanScreenState extends State<ScanScreen>
               )),
             ),
             title: Text(
-              entry.isHealthy
+              (entry.isHealthy || entry.diseaseName?.toLowerCase() == 'healthy')
                   ? '${entry.plantName} — Healthy 🌱'
                   : (entry.diseaseName ?? 'No disease matched'),
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
@@ -1595,7 +1722,6 @@ class _ScanScreenState extends State<ScanScreen>
                       Expanded(child: _buildMiniConfidenceBar(
                         label: 'Disease${entry.diseaseName != null ? ' (${entry.diseaseName!})' : ''}',
                         confidence: entry.confidence,
-                        isDisease:  true,
                       )),
                     ],
                   ),
@@ -1644,11 +1770,10 @@ class _ScanScreenState extends State<ScanScreen>
   Widget _buildMiniConfidenceBar({
     required String label,
     required double confidence,
-    bool isDisease = false,
   }) {
     final pct   = confidence * 100;
     final color = pct >= 80
-        ? const Color(0xFF2E7D32)
+        ? AppColors.green600
         : pct >= 55
             ? const Color(0xFFF9A825)
             : const Color(0xFFD84315);
@@ -1937,5 +2062,3 @@ class _DetailLine extends StatelessWidget {
     );
   }
 }
-
-

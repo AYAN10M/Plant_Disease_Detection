@@ -22,3 +22,10 @@ matplotlib==3.10.9
 # ── Misc dev tools ─────────────────────────────────────────────────────────────
 Werkzeug==3.1.8
 MarkupSafe==3.0.3
+
+# ── HTTP client (used by scripts/smoke_test.py, scripts/test_detection.py) ─────
+requests==2.33.1
+certifi==2026.4.22
+charset-normalizer==3.4.7
+idna==3.13
+urllib3==2.6.3

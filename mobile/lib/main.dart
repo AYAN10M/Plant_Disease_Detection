@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/theme/app_theme.dart';
 import 'features/scan/screens/scan_screen.dart';
@@ -7,7 +6,7 @@ import 'features/scan/screens/scan_screen.dart';
 final themeModeNotifier = ValueNotifier<ThemeMode>(ThemeMode.light);
 
 void main() {
-  runApp(const ProviderScope(child: MidoriApp()));
+  runApp(const MidoriApp());
 }
 
 class MidoriApp extends StatefulWidget {

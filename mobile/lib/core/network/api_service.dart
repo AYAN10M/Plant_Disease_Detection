@@ -65,12 +65,13 @@ class MidoriApiClient {
 
   /// POST /api/detections/ — upload [imageBytes] and run the two-stage pipeline.
   ///
-  /// [plantOverride] : if non-null and non-empty, skips Stage-1 plant ID
-  ///                   and forces this plant name (e.g. "Pepper")
+  /// [plantOverride]       : if non-null, skips Stage-1 plant ID
+  /// [confidenceThreshold] : Stage-1 min confidence % (0–100, default 40)
   Future<DetectionApiResponse> detectImage({
     required Uint8List imageBytes,
     required String filename,
     String? plantOverride,
+    double confidenceThreshold = 40.0,
   }) async {
     if (imageBytes.lengthInBytes > AppConstants.maxImageBytes) {
       throw const MidoriApiException(
@@ -92,6 +93,10 @@ class MidoriApiClient {
     if (plantOverride != null && plantOverride.isNotEmpty) {
       request.fields['plant_override'] = plantOverride;
     }
+
+    // Always send threshold so backend uses the user's chosen value
+    request.fields['confidence_threshold'] =
+        confidenceThreshold.toStringAsFixed(1);
 
     try {
       final streamed = await request

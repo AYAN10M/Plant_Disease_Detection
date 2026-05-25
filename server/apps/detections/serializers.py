@@ -13,7 +13,9 @@ _ALLOWED_CONTENT_TYPES = {
     "image/heic", "image/heif",
 }
 
-PLANT_OVERRIDE_CHOICES = ["", "Apple", "Corn", "Grape", "Potato", "Tomato", "Pepper"]
+# Only plants that have a disease model are valid overrides.
+# Corn and Tomato are excluded — no disease model exists for them yet.
+PLANT_OVERRIDE_CHOICES = ["", "Apple", "Grape", "Potato", "Pepper"]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -35,6 +37,13 @@ class DetectionCreateSerializer(serializers.Serializer):
         required=False,
         allow_blank=True,
         default="",
+    )
+    confidence_threshold = serializers.FloatField(
+        required=False,
+        default=40.0,
+        min_value=0.0,
+        max_value=100.0,
+        help_text="Stage-1 minimum confidence % (0-100). Default: 40.",
     )
 
     def validate_uploaded_image(self, value):
@@ -123,7 +132,12 @@ class DetectionResultSerializer(serializers.ModelSerializer):
         return f"{round(obj.confidence * 100.0, 1)}%"
 
     def get_is_healthy(self, obj: Detection) -> bool:
-        return obj.status == "healthy"
+        """True when status is 'healthy' OR the top disease class was 'Healthy'."""
+        if obj.status == "healthy":
+            return True
+        if obj.disease and obj.disease.name.lower() == "healthy":
+            return True
+        return False
 
     # ── URL helpers ───────────────────────────────────────────────────────────
 
