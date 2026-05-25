@@ -17,7 +17,8 @@ import '../services/history_service.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 
 enum _HistorySearchScope { all, plant, disease }
-enum _HistorySortMode    { newest, lowestConfidence }
+
+enum _HistorySortMode { newest, lowestConfidence }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Screen
@@ -34,8 +35,8 @@ class _ScanScreenState extends State<ScanScreen>
     with SingleTickerProviderStateMixin {
   // ── Services ───────────────────────────────────────────────────────────────
   final _historyStore = DetectionHistoryStore();
-  final _picker       = ImagePicker();
-  final _apiClient    = MidoriApiClient();
+  final _picker = ImagePicker();
+  final _apiClient = MidoriApiClient();
 
   // ── Navigation ─────────────────────────────────────────────────────────────
   int _currentIndex = 0;
@@ -44,24 +45,24 @@ class _ScanScreenState extends State<ScanScreen>
   bool _serverReady = false;
 
   // ── Scan state ─────────────────────────────────────────────────────────────
-  bool      _detecting              = false;
-  XFile?    _selectedImage;
+  bool _detecting = false;
+  XFile? _selectedImage;
   Uint8List? _selectedImageBytes;
   Uint8List? _plantGradcamBytes;
   Uint8List? _diseaseGradcamBytes;
 
   DetectionApiResponse? _latestResult;
-  String?               _scanFeedbackMessage;
-  bool                  _scanFeedbackIsError = false;
+  String? _scanFeedbackMessage;
+  bool _scanFeedbackIsError = false;
 
   // Plant override dropdown — sourced from AppConstants (disease-model plants only)
-  String? _selectedPlantOverride;   // null == Auto-detect
+  String? _selectedPlantOverride; // null == Auto-detect
 
   // Confidence slider (matches notebook's Min Conf % slider)
-  double _minConfidence = 40.0;   // 0–100 %
+  double _minConfidence = 40.0; // 0–100 %
 
   // ── History state ──────────────────────────────────────────────────────────
-  bool    _loadingHistory      = false;
+  bool _loadingHistory = false;
   String? _historyErrorMessage;
   String? _historyErrorActionLabel;
   VoidCallback? _historyErrorAction;
@@ -69,9 +70,9 @@ class _ScanScreenState extends State<ScanScreen>
   List<DetectionHistoryEntry> _history = [];
   final Set<String> _expandedHistoryCards = {};
 
-  bool                _filterExpanded   = false;
+  bool _filterExpanded = false;
   _HistorySearchScope _historySearchScope = _HistorySearchScope.all;
-  _HistorySortMode    _historySortMode    = _HistorySortMode.newest;
+  _HistorySortMode _historySortMode = _HistorySortMode.newest;
   final _historySearchController = TextEditingController();
 
   // Pending save retry
@@ -109,19 +110,24 @@ class _ScanScreenState extends State<ScanScreen>
   Future<void> _loadHistory() async {
     if (!mounted) return;
     setState(() {
-      _loadingHistory      = true;
+      _loadingHistory = true;
       _historyErrorMessage = null;
     });
     try {
       final entries = await _historyStore.loadEntries();
-      if (mounted) setState(() { _history = entries; _loadingHistory = false; });
+      if (mounted) {
+        setState(() {
+          _history = entries;
+          _loadingHistory = false;
+        });
+      }
     } catch (_) {
       if (mounted) {
         setState(() {
-          _loadingHistory      = false;
+          _loadingHistory = false;
           _historyErrorMessage = 'Could not load detection history.';
           _historyErrorActionLabel = 'Retry';
-          _historyErrorAction  = _loadHistory;
+          _historyErrorAction = _loadHistory;
         });
       }
     }
@@ -134,7 +140,7 @@ class _ScanScreenState extends State<ScanScreen>
       _expandedHistoryCards.clear();
       _historySearchController.clear();
       _historySearchScope = _HistorySearchScope.all;
-      _historySortMode    = _HistorySortMode.newest;
+      _historySortMode = _HistorySortMode.newest;
     });
   }
 
@@ -167,14 +173,17 @@ class _ScanScreenState extends State<ScanScreen>
       if (!mounted) return;
       setState(() {
         _history.removeWhere(
-          (e) => e.createdAt.toIso8601String() == entry.createdAt.toIso8601String(),
+          (e) =>
+              e.createdAt.toIso8601String() ==
+              entry.createdAt.toIso8601String(),
         );
         _expandedHistoryCards.remove(_historyCardKey(entry));
       });
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not delete this entry. Please try again.')),
+        const SnackBar(
+            content: Text('Could not delete this entry. Please try again.')),
       );
     }
   }
@@ -186,7 +195,8 @@ class _ScanScreenState extends State<ScanScreen>
   Future<bool> _ensureMediaPermission(ImageSource source) async {
     if (source == ImageSource.camera) {
       return _requestPermission(
-        Permission.camera, 'Camera permission is needed to take a photo.',
+        Permission.camera,
+        'Camera permission is needed to take a photo.',
       );
     }
     // Gallery — Android 13+ and iOS grant access via picker natively.
@@ -229,9 +239,9 @@ class _ScanScreenState extends State<ScanScreen>
     if (!ok) return;
 
     final file = await _picker.pickImage(
-      source:     source,
-      maxWidth:   1920,
-      maxHeight:  1920,
+      source: source,
+      maxWidth: 1920,
+      maxHeight: 1920,
       imageQuality: 85,
     );
     if (file == null) return;
@@ -239,11 +249,11 @@ class _ScanScreenState extends State<ScanScreen>
     final bytes = await file.readAsBytes();
     if (mounted) {
       setState(() {
-        _selectedImage       = file;
-        _selectedImageBytes  = bytes;
-        _plantGradcamBytes   = null;
+        _selectedImage = file;
+        _selectedImageBytes = bytes;
+        _plantGradcamBytes = null;
         _diseaseGradcamBytes = null;
-        _latestResult        = null;
+        _latestResult = null;
         _scanFeedbackMessage = null;
       });
     }
@@ -261,7 +271,8 @@ class _ScanScreenState extends State<ScanScreen>
           children: [
             const SizedBox(height: 12),
             Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               decoration: BoxDecoration(
                 color: Colors.grey.shade300,
                 borderRadius: BorderRadius.circular(4),
@@ -271,12 +282,18 @@ class _ScanScreenState extends State<ScanScreen>
             ListTile(
               leading: const Icon(Icons.camera_alt_rounded),
               title: const Text('Take a new photo'),
-              onTap: () { Navigator.pop(ctx); _pickImage(ImageSource.camera); },
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickImage(ImageSource.camera);
+              },
             ),
             ListTile(
               leading: const Icon(Icons.photo_library_rounded),
               title: const Text('Choose from gallery'),
-              onTap: () { Navigator.pop(ctx); _pickImage(ImageSource.gallery); },
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickImage(ImageSource.gallery);
+              },
             ),
             const SizedBox(height: 8),
           ],
@@ -296,7 +313,8 @@ class _ScanScreenState extends State<ScanScreen>
     }
 
     if (_selectedImageBytes!.lengthInBytes > AppConstants.maxImageBytes) {
-      _setScanFeedback('Image is too large (max 10 MB). Please choose a smaller photo.',
+      _setScanFeedback(
+          'Image is too large (max 10 MB). Please choose a smaller photo.',
           isError: true);
       return;
     }
@@ -318,21 +336,20 @@ class _ScanScreenState extends State<ScanScreen>
     }
 
     setState(() {
-      _detecting           = true;
+      _detecting = true;
       _scanFeedbackMessage = null;
-      _plantGradcamBytes   = null;
+      _plantGradcamBytes = null;
       _diseaseGradcamBytes = null;
     });
 
     try {
-      final filename = _selectedImage!.name.isNotEmpty
-          ? _selectedImage!.name
-          : 'leaf.jpg';
+      final filename =
+          _selectedImage!.name.isNotEmpty ? _selectedImage!.name : 'leaf.jpg';
 
       final response = await _apiClient.detectImage(
-        imageBytes:          _selectedImageBytes!,
-        filename:            filename,
-        plantOverride:       _selectedPlantOverride,
+        imageBytes: _selectedImageBytes!,
+        filename: filename,
+        plantOverride: _selectedPlantOverride,
         confidenceThreshold: _minConfidence,
       );
 
@@ -341,18 +358,19 @@ class _ScanScreenState extends State<ScanScreen>
       // ── Handle not_a_plant ─────────────────────────────────────────────
       if (response.status == 'not_a_plant') {
         setState(() {
-          _detecting    = false;
+          _detecting = false;
           _latestResult = null;
         });
         _setScanFeedback(
-          response.message ?? 'No plant detected. Please use a clear leaf photo.',
+          response.message ??
+              'No plant detected. Please use a clear leaf photo.',
           isError: true,
         );
         return;
       }
 
       // ── Fetch both Grad-CAM images in parallel ─────────────────────────
-      final plantGradcamUrl   = response.data?.plantGradcamImageUrl;
+      final plantGradcamUrl = response.data?.plantGradcamImageUrl;
       final diseaseGradcamUrl = response.data?.gradcamImageUrl;
 
       final results = await Future.wait([
@@ -363,9 +381,9 @@ class _ScanScreenState extends State<ScanScreen>
       if (!mounted) return;
 
       setState(() {
-        _latestResult        = response;
-        _detecting           = false;
-        _plantGradcamBytes   = results[0];
+        _latestResult = response;
+        _detecting = false;
+        _plantGradcamBytes = results[0];
         _diseaseGradcamBytes = results[1];
         if (response.status == 'not_recognized') {
           _scanFeedbackMessage = null;
@@ -377,8 +395,8 @@ class _ScanScreenState extends State<ScanScreen>
         final entry = DetectionHistoryEntry.fromDetection(
           response.data!,
           response.message,
-          imageBytes:        _selectedImageBytes,
-          gradcamBytes:      results[1],
+          imageBytes: _selectedImageBytes,
+          gradcamBytes: results[1],
           plantGradcamBytes: results[0],
         );
         await _saveHistoryEntry(entry);
@@ -390,7 +408,8 @@ class _ScanScreenState extends State<ScanScreen>
     } catch (e) {
       if (!mounted) return;
       setState(() => _detecting = false);
-      _setScanFeedback('An unexpected error occurred. Please try again.', isError: true);
+      _setScanFeedback('An unexpected error occurred. Please try again.',
+          isError: true);
     }
   }
 
@@ -436,7 +455,8 @@ class _ScanScreenState extends State<ScanScreen>
             const SizedBox(width: 8),
             const Text(
               'Midori',
-              style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.5),
+              style:
+                  TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.5),
             ),
           ],
         ),
@@ -459,7 +479,8 @@ class _ScanScreenState extends State<ScanScreen>
             final isDark = Theme.of(ctx).brightness == Brightness.dark;
             return IconButton(
               tooltip: isDark ? 'Light mode' : 'Dark mode',
-              icon: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded),
+              icon: Icon(
+                  isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded),
               onPressed: () {
                 themeModeNotifier.value =
                     isDark ? ThemeMode.light : ThemeMode.dark;
@@ -481,14 +502,14 @@ class _ScanScreenState extends State<ScanScreen>
         onDestinationSelected: (i) => setState(() => _currentIndex = i),
         destinations: const [
           NavigationDestination(
-            icon:         Icon(Icons.document_scanner_outlined),
+            icon: Icon(Icons.document_scanner_outlined),
             selectedIcon: Icon(Icons.document_scanner_rounded),
-            label:        'Scan',
+            label: 'Scan',
           ),
           NavigationDestination(
-            icon:         Icon(Icons.history_outlined),
+            icon: Icon(Icons.history_outlined),
             selectedIcon: Icon(Icons.history_rounded),
-            label:        'History',
+            label: 'History',
           ),
         ],
       ),
@@ -510,33 +531,38 @@ class _ScanScreenState extends State<ScanScreen>
               padding: _responsivePadding(constraints).copyWith(bottom: 32),
               children: [
                 _buildPlantOverrideDropdown(),
-                const SizedBox(height: 8),
+                const SizedBox(height: 16),
                 _buildConfidenceSlider(),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 _buildImageCard(),
                 if (_detecting) ...[
                   const SizedBox(height: 12),
                   _buildNoticeCard(
-                    icon:    Icons.hourglass_top_rounded,
-                    title:   'Analysing leaf…',
-                    message: 'Stage 1: identifying plant. Stage 2: detecting disease. '
-                             'Generating Grad-CAM heatmaps.',
-                    iconColor:    AppColors.green500,
+                    icon: Icons.hourglass_top_rounded,
+                    title: 'Analysing leaf…',
+                    message:
+                        'Stage 1: identifying plant. Stage 2: detecting disease. '
+                        'Generating Grad-CAM heatmaps.',
+                    iconColor: AppColors.green500,
                     showProgress: true,
                   ),
                 ],
                 if (_scanFeedbackMessage != null) ...[
                   const SizedBox(height: 12),
                   _buildNoticeCard(
-                    icon:      _scanFeedbackIsError
+                    icon: _scanFeedbackIsError
                         ? Icons.error_outline_rounded
                         : Icons.info_outline_rounded,
-                    title:     _scanFeedbackIsError ? 'Problem' : 'Note',
-                    message:   _scanFeedbackMessage!,
-                    iconColor: _scanFeedbackIsError ? AppColors.error : AppColors.green500,
-                    actionLabel: _pendingHistoryEntry != null ? 'Retry save' : null,
-                    onAction:    _pendingHistoryEntry != null
-                        ? _retryPendingHistoryEntry : null,
+                    title: _scanFeedbackIsError ? 'Problem' : 'Note',
+                    message: _scanFeedbackMessage!,
+                    iconColor: _scanFeedbackIsError
+                        ? AppColors.error
+                        : AppColors.green500,
+                    actionLabel:
+                        _pendingHistoryEntry != null ? 'Retry save' : null,
+                    onAction: _pendingHistoryEntry != null
+                        ? _retryPendingHistoryEntry
+                        : null,
                   ),
                 ],
                 if (_latestResult != null) ...[
@@ -556,33 +582,33 @@ class _ScanScreenState extends State<ScanScreen>
   // ─────────────────────────────────────────────────────────────────────────
 
   Widget _buildPlantOverrideDropdown() {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
           'Plant override:',
           style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: DropdownButtonFormField<String?>(
-            initialValue:       _selectedPlantOverride,
-            isExpanded:  true,
-            decoration:  InputDecoration(
-              isDense:         true,
-              contentPadding:  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              border:          OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            items: [
-              const DropdownMenuItem<String?>(
-                value: null,
-                child: Text('Auto-detect  (Stage 1 runs)'),
-              ),
-              ...AppConstants.plantOverrideOptions.map(
-                (p) => DropdownMenuItem<String?>(value: p, child: Text(p)),
-              ),
-            ],
-            onChanged: (v) => setState(() => _selectedPlantOverride = v),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String?>(
+          initialValue: _selectedPlantOverride,
+          isExpanded: true,
+          decoration: InputDecoration(
+            isDense: true,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
           ),
+          items: [
+            const DropdownMenuItem<String?>(
+              value: null,
+              child: Text('Auto-detect  (Stage 1 runs)'),
+            ),
+            ...AppConstants.plantOverrideOptions.map(
+              (p) => DropdownMenuItem<String?>(value: p, child: Text(p)),
+            ),
+          ],
+          onChanged: (v) => setState(() => _selectedPlantOverride = v),
         ),
       ],
     );
@@ -593,18 +619,18 @@ class _ScanScreenState extends State<ScanScreen>
   // ─────────────────────────────────────────────────────────────────────────
 
   Widget _buildConfidenceSlider() {
-    final theme   = Theme.of(context);
-    final isDark  = theme.brightness == Brightness.dark;
-    final accent  = AppColors.green500;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final accent = AppColors.green500;
     final bgColor = isDark ? AppColors.gray800 : AppColors.green50;
-    final border  = isDark ? AppColors.gray700 : AppColors.green100;
+    final border = isDark ? AppColors.gray700 : AppColors.green100;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color:        bgColor,
+        color: bgColor,
         borderRadius: BorderRadius.circular(12),
-        border:       Border.all(color: border),
+        border: Border.all(color: border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -614,60 +640,65 @@ class _ScanScreenState extends State<ScanScreen>
             children: [
               Row(
                 children: [
-                  Icon(Icons.tune_rounded, size: 15, color: accent),
-                  const SizedBox(width: 6),
+                  Icon(Icons.tune_rounded, size: 16, color: accent),
+                  const SizedBox(width: 8),
                   const Text(
                     'Min Confidence',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                   ),
                 ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 decoration: BoxDecoration(
-                  color:        accent.withValues(alpha: 0.12),
+                  color: accent.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   '${_minConfidence.round()}%',
                   style: TextStyle(
                     fontWeight: FontWeight.w800,
-                    fontSize:   13,
-                    color:      accent,
+                    fontSize: 14,
+                    color: accent,
                   ),
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 10),
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
-              trackHeight:          3,
-              thumbShape:           const RoundSliderThumbShape(enabledThumbRadius: 8),
-              overlayShape:         const RoundSliderOverlayShape(overlayRadius: 18),
-              activeTrackColor:     accent,
-              inactiveTrackColor:   accent.withValues(alpha: 0.18),
-              thumbColor:           accent,
-              overlayColor:         accent.withValues(alpha: 0.15),
-              tickMarkShape:        const RoundSliderTickMarkShape(tickMarkRadius: 2.5),
-              activeTickMarkColor:  Colors.white,
+              trackHeight: 3,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 18),
+              activeTrackColor: accent,
+              inactiveTrackColor: accent.withValues(alpha: 0.18),
+              thumbColor: accent,
+              overlayColor: accent.withValues(alpha: 0.15),
+              tickMarkShape:
+                  const RoundSliderTickMarkShape(tickMarkRadius: 2.5),
+              activeTickMarkColor: Colors.white,
               inactiveTickMarkColor: accent.withValues(alpha: 0.4),
             ),
             child: Slider(
-              value:     _minConfidence,
-              min:       0,
-              max:       100,
-              divisions: 20,            // steps of 5%
+              value: _minConfidence,
+              min: 0,
+              max: 100,
+              divisions: 20, // steps of 5%
               onChanged: (v) => setState(() => _minConfidence = v),
             ),
           ),
+          const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: ['0%', '25%', '50%', '75%', '100%']
                 .map((t) => Text(t,
-                    style: TextStyle(fontSize: 10, color: Colors.grey.shade500)))
+                    style:
+                        TextStyle(fontSize: 10, color: Colors.grey.shade500)))
                 .toList(),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Text(
             _minConfidence < 20
                 ? 'Very lenient — almost any image accepted'
@@ -678,7 +709,7 @@ class _ScanScreenState extends State<ScanScreen>
                         : _minConfidence < 80
                             ? 'Strict — requires clear, well-lit photos'
                             : 'Very strict — only high-quality photos pass',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
           ),
         ],
       ),
@@ -693,53 +724,59 @@ class _ScanScreenState extends State<ScanScreen>
     return Card(
       elevation: 0,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Column(
           children: [
             _buildThreePanelPreview(),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
             // Action buttons row
             Row(
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: _detecting ? null : () => _pickImage(ImageSource.gallery),
-                    icon:  const Icon(Icons.photo_library_outlined, size: 18),
+                    onPressed: _detecting
+                        ? null
+                        : () => _pickImage(ImageSource.gallery),
+                    icon: const Icon(Icons.photo_library_outlined, size: 18),
                     label: const Text('Gallery'),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: _detecting ? null : () => _pickImage(ImageSource.camera),
-                    icon:  const Icon(Icons.camera_alt_outlined, size: 18),
+                    onPressed: _detecting
+                        ? null
+                        : () => _pickImage(ImageSource.camera),
+                    icon: const Icon(Icons.camera_alt_outlined, size: 18),
                     label: const Text('Camera'),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 50),
+                  minimumSize: const Size(double.infinity, 56),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                onPressed: _detecting || _selectedImage == null
-                    ? null
-                    : _runDetection,
-                icon:  _detecting
+                onPressed:
+                    _detecting || _selectedImage == null ? null : _runDetection,
+                icon: _detecting
                     ? const SizedBox(
-                        width: 18, height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
                       )
                     : const Icon(Icons.biotech_rounded),
                 label: Text(
                   _detecting ? 'Analysing…' : 'Detect Disease',
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 15),
                 ),
               ),
             ),
@@ -754,7 +791,7 @@ class _ScanScreenState extends State<ScanScreen>
       return GestureDetector(
         onTap: () => _pickImage(ImageSource.gallery),
         child: Container(
-          height: 160,
+          height: 180,
           decoration: BoxDecoration(
             color: _surfaceVariant(context),
             borderRadius: BorderRadius.circular(16),
@@ -765,14 +802,17 @@ class _ScanScreenState extends State<ScanScreen>
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Icon(Icons.add_photo_alternate_outlined,
-                  size: 48, color: AppColors.green400),
-              const SizedBox(height: 8),
+                  size: 52, color: AppColors.green400),
+              const SizedBox(height: 12),
               const Text('Tap to select a leaf photo',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 4),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+              const SizedBox(height: 6),
               Text('JPG, PNG or WebP · max 10 MB',
+                  textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
             ],
           ),
@@ -784,29 +824,31 @@ class _ScanScreenState extends State<ScanScreen>
       children: [
         Expanded(
           child: _buildPreviewTile(
-            title:           'Original',
+            title: 'Original',
             fullscreenBytes: _selectedImageBytes,
-            child:           Image.memory(_selectedImageBytes!, fit: BoxFit.cover),
+            child: Image.memory(_selectedImageBytes!, fit: BoxFit.cover),
           ),
         ),
         const SizedBox(width: 8),
         Expanded(
           child: _buildPreviewTile(
-            title:           'Plant CAM',
+            title: 'Plant CAM',
             fullscreenBytes: _plantGradcamBytes,
-            child:           _plantGradcamBytes != null
+            child: _plantGradcamBytes != null
                 ? Image.memory(_plantGradcamBytes!, fit: BoxFit.cover)
-                : _gradcamPlaceholder(_detecting ? 'Stage 1…' : 'Stage 1\nnot available'),
+                : _gradcamPlaceholder(
+                    _detecting ? 'Stage 1…' : 'Stage 1\nnot available'),
           ),
         ),
         const SizedBox(width: 8),
         Expanded(
           child: _buildPreviewTile(
-            title:           'Disease CAM',
+            title: 'Disease CAM',
             fullscreenBytes: _diseaseGradcamBytes,
-            child:           _diseaseGradcamBytes != null
+            child: _diseaseGradcamBytes != null
                 ? Image.memory(_diseaseGradcamBytes!, fit: BoxFit.cover)
-                : _gradcamPlaceholder(_detecting ? 'Stage 2…' : 'Stage 2\nnot available'),
+                : _gradcamPlaceholder(
+                    _detecting ? 'Stage 2…' : 'Stage 2\nnot available'),
           ),
         ),
       ],
@@ -815,10 +857,11 @@ class _ScanScreenState extends State<ScanScreen>
 
   Widget _gradcamPlaceholder(String text) => Center(
         child: Padding(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(12),
           child: Text(text,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 11)),
+              style:
+                  const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
         ),
       );
 
@@ -833,56 +876,57 @@ class _ScanScreenState extends State<ScanScreen>
     return Card(
       elevation: 0,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-
             // ── Status banner ────────────────────────────────────────────
             _buildStatusBanner(response, result),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
 
             // ── Stage 1 — Plant confidence ───────────────────────────────
             _buildStageConfidenceBar(
-              stageLabel:  'Stage 1 — Plant',
-              label:       result.plantName.isEmpty ? 'Unknown' : result.plantName,
-              confidence:  result.plantConfidence,
+              stageLabel: 'Stage 1 — Plant',
+              label: result.plantName.isEmpty ? 'Unknown' : result.plantName,
+              confidence: result.plantConfidence,
               gradcamBytes: _plantGradcamBytes,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
 
             // ── Stage 2 — Disease confidence ─────────────────────────────
             if (result.diseaseName != null || response.effectivelyHealthy) ...[
               _buildStageConfidenceBar(
-                stageLabel:  'Stage 2 — Disease',
-                label:       response.effectivelyHealthy
+                stageLabel: 'Stage 2 — Disease',
+                label: response.effectivelyHealthy
                     ? 'Healthy 🌱'
                     : (result.diseaseName ?? 'Unknown'),
-                confidence:  result.confidence,
+                confidence: result.confidence,
                 gradcamBytes: _diseaseGradcamBytes,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
             ],
 
             // ── All plant scores ─────────────────────────────────────────
             if (result.plantScores.isNotEmpty) ...[
               _buildAllScoresSection(
-                title:   'Plant identification scores',
-                scores:  result.plantScores,
+                title: 'Plant identification scores',
+                scores: result.plantScores,
                 winnerName: result.plantName,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
             ],
 
             // ── All disease scores ────────────────────────────────────────
             if (result.diseaseScores.isNotEmpty) ...[
               _buildAllScoresSection(
-                title:     'Disease detection scores',
-                scores:    result.diseaseScores,
-                winnerName: response.effectivelyHealthy ? 'Healthy' : (result.diseaseName ?? ''),
+                title: 'Disease detection scores',
+                scores: result.diseaseScores,
+                winnerName: response.effectivelyHealthy
+                    ? 'Healthy'
+                    : (result.diseaseName ?? ''),
                 isDisease: true,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
             ],
 
             // ── Disease details (only for actual diseases, not healthy) ──────────
@@ -893,22 +937,25 @@ class _ScanScreenState extends State<ScanScreen>
                 title: 'Diagnosis details',
                 children: [
                   if (result.diseaseCause != null)
-                    _DetailLine(label: 'Cause',      value: result.diseaseCause!),
+                    _DetailLine(label: 'Cause', value: result.diseaseCause!),
                   if (result.diseaseDescription != null) ...[
                     const SizedBox(height: 10),
-                    _DetailLine(label: 'Description', value: result.diseaseDescription!),
+                    _DetailLine(
+                        label: 'Description',
+                        value: result.diseaseDescription!),
                   ],
                   if (result.diseaseRemedy != null) ...[
                     const SizedBox(height: 10),
-                    _DetailLine(label: 'Remedy',     value: result.diseaseRemedy!),
+                    _DetailLine(label: 'Remedy', value: result.diseaseRemedy!),
                   ],
                   if (result.diseasePrevention != null) ...[
                     const SizedBox(height: 10),
-                    _DetailLine(label: 'Prevention', value: result.diseasePrevention!),
+                    _DetailLine(
+                        label: 'Prevention', value: result.diseasePrevention!),
                   ],
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
             ],
 
             // ── Treatment advice ──────────────────────────────────────────
@@ -920,13 +967,16 @@ class _ScanScreenState extends State<ScanScreen>
                     result.advice!,
                     style: TextStyle(
                       fontSize: 14,
-                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
-                      height: 1.5,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.8),
+                      height: 1.6,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
             ],
 
             // ── Healthy care tips ─────────────────────────────────────────
@@ -937,17 +987,19 @@ class _ScanScreenState extends State<ScanScreen>
                   _DetailLine(
                     label: 'Watering',
                     value: 'Water consistently but avoid waterlogging. '
-                           'Check soil moisture before each watering.',
+                        'Check soil moisture before each watering.',
                   ),
                   SizedBox(height: 10),
                   _DetailLine(
                     label: 'Sunlight',
-                    value: 'Ensure adequate sunlight. Rotate periodically for even growth.',
+                    value:
+                        'Ensure adequate sunlight. Rotate periodically for even growth.',
                   ),
                   SizedBox(height: 10),
                   _DetailLine(
                     label: 'Prevention',
-                    value: 'Inspect leaves regularly. Remove dead leaves and maintain airflow.',
+                    value:
+                        'Inspect leaves regularly. Remove dead leaves and maintain airflow.',
                   ),
                 ],
               ),
@@ -955,27 +1007,32 @@ class _ScanScreenState extends State<ScanScreen>
 
             // ── Low-confidence scan tips ──────────────────────────────────
             if (response.status == 'low_confidence') ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               _buildDetailGroup(
                 title: 'Tips for a better scan',
                 children: const [
-                  _DetailLine(label: 'Background',
+                  _DetailLine(
+                      label: 'Background',
                       value: 'Use a plain white/grey surface behind the leaf.'),
                   SizedBox(height: 10),
-                  _DetailLine(label: 'Lighting',
-                      value: 'Scan in bright natural light. Avoid shadows or flash.'),
+                  _DetailLine(
+                      label: 'Lighting',
+                      value:
+                          'Scan in bright natural light. Avoid shadows or flash.'),
                   SizedBox(height: 10),
-                  _DetailLine(label: 'Framing',
+                  _DetailLine(
+                      label: 'Framing',
                       value: 'Fill the frame with the affected leaf.'),
                   SizedBox(height: 10),
-                  _DetailLine(label: 'Focus',
+                  _DetailLine(
+                      label: 'Focus',
                       value: 'Make sure lesions are sharply in focus.'),
                 ],
               ),
             ],
 
             // ── Retake / scan-again buttons ────────────────────────────────
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
 
             // Prominent orange "Retake" only on low-quality results
             if (response.status == 'low_confidence' ||
@@ -984,29 +1041,30 @@ class _ScanScreenState extends State<ScanScreen>
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFD84315),
                   foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 46),
+                  minimumSize: const Size(double.infinity, 48),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
+                      borderRadius: BorderRadius.circular(12)),
                 ),
                 onPressed: _retakePhoto,
-                icon:  const Icon(Icons.camera_alt_rounded),
+                icon: const Icon(Icons.camera_alt_rounded),
                 label: const Text('Retake Photo',
-                    style: TextStyle(fontWeight: FontWeight.w700)),
+                    style:
+                        TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
             ],
 
             // Always available: scan a different leaf
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 46),
+                minimumSize: const Size(double.infinity, 48),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
+                    borderRadius: BorderRadius.circular(12)),
               ),
               onPressed: _retakePhoto,
-              icon:  const Icon(Icons.refresh_rounded),
+              icon: const Icon(Icons.refresh_rounded),
               label: const Text('Scan Another Leaf',
-                  style: TextStyle(fontWeight: FontWeight.w700)),
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
             ),
           ],
         ),
@@ -1018,62 +1076,63 @@ class _ScanScreenState extends State<ScanScreen>
   // Status banner
   // ─────────────────────────────────────────────────────────────────────────
 
-  Widget _buildStatusBanner(DetectionApiResponse response, DetectionResult result) {
+  Widget _buildStatusBanner(
+      DetectionApiResponse response, DetectionResult result) {
     Color bg, border, fg;
     IconData icon;
     String title;
 
     switch (response.status) {
       case 'healthy':
-        bg     = AppColors.green600.withValues(alpha: 0.10);
+        bg = AppColors.green600.withValues(alpha: 0.10);
         border = AppColors.green600.withValues(alpha: 0.35);
-        fg     = AppColors.green600;
-        icon   = Icons.check_circle_rounded;
-        title  = 'Healthy Plant — No disease detected! 🌱';
+        fg = AppColors.green600;
+        icon = Icons.check_circle_rounded;
+        title = 'Healthy Plant — No disease detected! 🌱';
         break;
       case 'success':
         // Backend returns status='success' even when disease_name is 'Healthy'
         if (response.effectivelyHealthy) {
-          bg     = AppColors.green600.withValues(alpha: 0.10);
+          bg = AppColors.green600.withValues(alpha: 0.10);
           border = AppColors.green600.withValues(alpha: 0.35);
-          fg     = AppColors.green600;
-          icon   = Icons.check_circle_rounded;
-          title  = 'Healthy Plant — No disease detected! 🌱';
+          fg = AppColors.green600;
+          icon = Icons.check_circle_rounded;
+          title = 'Healthy Plant — No disease detected! 🌱';
         } else {
-          bg     = const Color(0xFF1565C0).withValues(alpha: 0.08);
+          bg = const Color(0xFF1565C0).withValues(alpha: 0.08);
           border = const Color(0xFF1565C0).withValues(alpha: 0.28);
-          fg     = const Color(0xFF1565C0);
-          icon   = Icons.biotech_rounded;
-          title  = result.diseaseName ?? 'Disease Detected';
+          fg = const Color(0xFF1565C0);
+          icon = Icons.biotech_rounded;
+          title = result.diseaseName ?? 'Disease Detected';
         }
         break;
       case 'not_recognized':
-        bg     = const Color(0xFF6A1B9A).withValues(alpha: 0.08);
+        bg = const Color(0xFF6A1B9A).withValues(alpha: 0.08);
         border = const Color(0xFF6A1B9A).withValues(alpha: 0.30);
-        fg     = const Color(0xFF6A1B9A);
-        icon   = Icons.help_outline_rounded;
-        title  = 'Plant Not Recognised';
+        fg = const Color(0xFF6A1B9A);
+        icon = Icons.help_outline_rounded;
+        title = 'Plant Not Recognised';
         break;
       case 'no_model':
-        bg     = const Color(0xFF1565C0).withValues(alpha: 0.08);
+        bg = const Color(0xFF1565C0).withValues(alpha: 0.08);
         border = const Color(0xFF1565C0).withValues(alpha: 0.30);
-        fg     = const Color(0xFF1565C0);
-        icon   = Icons.science_outlined;
-        title  = '${result.plantName} — No Disease Model Yet';
+        fg = const Color(0xFF1565C0);
+        icon = Icons.science_outlined;
+        title = '${result.plantName} — No Disease Model Yet';
         break;
       case 'low_confidence':
-        bg     = const Color(0xFFD84315).withValues(alpha: 0.09);
+        bg = const Color(0xFFD84315).withValues(alpha: 0.09);
         border = const Color(0xFFD84315).withValues(alpha: 0.35);
-        fg     = const Color(0xFFD84315);
-        icon   = Icons.warning_amber_rounded;
-        title  = 'Low Confidence — Retake Recommended';
+        fg = const Color(0xFFD84315);
+        icon = Icons.warning_amber_rounded;
+        title = 'Low Confidence — Retake Recommended';
         break;
       default:
-        bg     = const Color(0xFF1565C0).withValues(alpha: 0.08);
+        bg = const Color(0xFF1565C0).withValues(alpha: 0.08);
         border = const Color(0xFF1565C0).withValues(alpha: 0.28);
-        fg     = const Color(0xFF1565C0);
-        icon   = Icons.biotech_rounded;
-        title  = result.diseaseName ?? 'Disease Detected';
+        fg = const Color(0xFF1565C0);
+        icon = Icons.biotech_rounded;
+        title = result.diseaseName ?? 'Disease Detected';
     }
 
     return Container(
@@ -1085,21 +1144,26 @@ class _ScanScreenState extends State<ScanScreen>
         border: Border.all(color: border),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: fg, size: 22),
-          const SizedBox(width: 10),
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(icon, color: fg, size: 24),
+          ),
+          const SizedBox(width: 12),
           Flexible(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
                     style: TextStyle(
-                        fontWeight: FontWeight.w700, color: fg, fontSize: 15)),
-                if (response.message != null && response.message!.isNotEmpty) ...[
+                        fontWeight: FontWeight.w700, color: fg, fontSize: 16)),
+                if (response.message != null &&
+                    response.message!.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(response.message!,
-                      style: TextStyle(fontSize: 13,
-                          color: fg.withValues(alpha: 0.85))),
+                      style: TextStyle(
+                          fontSize: 13, color: fg.withValues(alpha: 0.85))),
                 ],
               ],
             ),
@@ -1119,7 +1183,7 @@ class _ScanScreenState extends State<ScanScreen>
     required double confidence,
     Uint8List? gradcamBytes,
   }) {
-    final pct   = confidence * 100;
+    final pct = confidence * 100;
     final color = pct >= 80
         ? AppColors.green600
         : pct >= 55
@@ -1127,42 +1191,45 @@ class _ScanScreenState extends State<ScanScreen>
             : const Color(0xFFD84315);
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color:        color.withValues(alpha: 0.07),
+        color: color.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(14),
-        border:       Border.all(color: color.withValues(alpha: 0.25)),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(stageLabel,
-                  style: TextStyle(fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: color, letterSpacing: 0.4)),
-              const Spacer(),
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: color,
+                      letterSpacing: 0.5)),
               Text('${pct.toStringAsFixed(1)}%',
-                  style: TextStyle(fontSize: 16,
-                      fontWeight: FontWeight.w800, color: color)),
+                  style: TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.w800, color: color)),
             ],
           ),
-          const SizedBox(height: 6),
-          Text(label,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
+          Text(label,
+              style:
+                  const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 10),
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: TweenAnimationBuilder<double>(
-              tween:    Tween(begin: 0, end: confidence),
+              tween: Tween(begin: 0, end: confidence),
               duration: const Duration(milliseconds: 900),
-              curve:    Curves.easeOutCubic,
-              builder:  (_, val, __) => LinearProgressIndicator(
-                value:           val,
-                minHeight:       10,
+              curve: Curves.easeOutCubic,
+              builder: (_, val, __) => LinearProgressIndicator(
+                value: val,
+                minHeight: 10,
                 backgroundColor: color.withValues(alpha: 0.15),
-                valueColor:      AlwaysStoppedAnimation<Color>(color),
+                valueColor: AlwaysStoppedAnimation<Color>(color),
               ),
             ),
           ),
@@ -1187,9 +1254,9 @@ class _ScanScreenState extends State<ScanScreen>
     return _buildDetailGroup(
       title: title,
       children: sorted.map((score) {
-        final pct       = score.confidence * 100;
-        final isWinner  = score.name.toLowerCase() == winnerName.toLowerCase();
-        final barColor  = isWinner
+        final pct = score.confidence * 100;
+        final isWinner = score.name.toLowerCase() == winnerName.toLowerCase();
+        final barColor = isWinner
             ? (pct >= 80
                 ? AppColors.green600
                 : pct >= 55
@@ -1198,7 +1265,7 @@ class _ScanScreenState extends State<ScanScreen>
             : Colors.grey.shade400;
 
         return Padding(
-          padding: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.only(bottom: 10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1210,11 +1277,13 @@ class _ScanScreenState extends State<ScanScreen>
                       score.name,
                       style: TextStyle(
                         fontSize: 13,
-                        fontWeight: isWinner ? FontWeight.w700 : FontWeight.w500,
+                        fontWeight:
+                            isWinner ? FontWeight.w700 : FontWeight.w500,
                         color: isWinner ? barColor : null,
                       ),
                     ),
                   ),
+                  const SizedBox(width: 8),
                   Text(
                     '${pct.toStringAsFixed(1)}%',
                     style: TextStyle(
@@ -1225,14 +1294,14 @@ class _ScanScreenState extends State<ScanScreen>
                   ),
                 ],
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 6),
               ClipRRect(
                 borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(
-                  value:           score.confidence,
-                  minHeight:       6,
+                  value: score.confidence,
+                  minHeight: 8,
                   backgroundColor: barColor.withValues(alpha: 0.12),
-                  valueColor:      AlwaysStoppedAnimation<Color>(barColor),
+                  valueColor: AlwaysStoppedAnimation<Color>(barColor),
                 ),
               ),
             ],
@@ -1263,7 +1332,8 @@ class _ScanScreenState extends State<ScanScreen>
                     const Expanded(
                       child: Text(
                         'Saved on this device',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                        style: TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.w700),
                       ),
                     ),
                     TextButton(
@@ -1280,14 +1350,15 @@ class _ScanScreenState extends State<ScanScreen>
                                   ),
                                   actions: [
                                     TextButton(
-                                      onPressed: () => Navigator.pop(ctx, false),
+                                      onPressed: () =>
+                                          Navigator.pop(ctx, false),
                                       child: const Text('Cancel'),
                                     ),
                                     TextButton(
                                       onPressed: () => Navigator.pop(ctx, true),
                                       child: const Text('Clear all',
-                                          style:
-                                              TextStyle(color: Color(0xFFD32F2F))),
+                                          style: TextStyle(
+                                              color: Color(0xFFD32F2F))),
                                     ),
                                   ],
                                 ),
@@ -1302,18 +1373,19 @@ class _ScanScreenState extends State<ScanScreen>
                 _buildHistoryControls(),
                 const SizedBox(height: 12),
                 if (_loadingHistory)
-                  const Center(child: Padding(
+                  const Center(
+                      child: Padding(
                     padding: EdgeInsets.symmetric(vertical: 24),
                     child: CircularProgressIndicator(),
                   ))
                 else if (_historyErrorMessage != null)
                   _buildNoticeCard(
-                    icon:        Icons.cloud_off_outlined,
-                    title:       'History unavailable',
-                    message:     _historyErrorMessage!,
-                    iconColor:   AppColors.error,
+                    icon: Icons.cloud_off_outlined,
+                    title: 'History unavailable',
+                    message: _historyErrorMessage!,
+                    iconColor: AppColors.error,
                     actionLabel: _historyErrorActionLabel,
-                    onAction:    _historyErrorAction,
+                    onAction: _historyErrorAction,
                   )
                 else if (_history.isEmpty)
                   Card(
@@ -1326,7 +1398,8 @@ class _ScanScreenState extends State<ScanScreen>
                               size: 48, color: Colors.green.shade300),
                           const SizedBox(height: 12),
                           const Text('No detection history yet',
-                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                              style: TextStyle(
+                                  fontSize: 18, fontWeight: FontWeight.w700)),
                           const SizedBox(height: 6),
                           const Text('Run a scan and it will appear here.'),
                         ],
@@ -1335,15 +1408,15 @@ class _ScanScreenState extends State<ScanScreen>
                   )
                 else if (visible.isEmpty)
                   _buildNoticeCard(
-                    icon:        Icons.manage_search_outlined,
-                    title:       'No matches',
-                    message:     'Try a different search term or filter.',
-                    iconColor:   AppColors.green500,
+                    icon: Icons.manage_search_outlined,
+                    title: 'No matches',
+                    message: 'Try a different search term or filter.',
+                    iconColor: AppColors.green500,
                     actionLabel: 'Clear search',
-                    onAction:    () => setState(() {
+                    onAction: () => setState(() {
                       _historySearchController.clear();
                       _historySearchScope = _HistorySearchScope.all;
-                      _historySortMode    = _HistorySortMode.newest;
+                      _historySortMode = _HistorySortMode.newest;
                     }),
                   )
                 else ...[
@@ -1369,7 +1442,7 @@ class _ScanScreenState extends State<ScanScreen>
   }
 
   Widget _buildHistoryControls() {
-    final cs            = Theme.of(context).colorScheme;
+    final cs = Theme.of(context).colorScheme;
     final hasActiveFilter = _historySearchScope != _HistorySearchScope.all ||
         _historySortMode != _HistorySortMode.newest;
 
@@ -1383,11 +1456,11 @@ class _ScanScreenState extends State<ScanScreen>
                 controller: _historySearchController,
                 onChanged: (_) => setState(() {}),
                 decoration: InputDecoration(
-                  prefixIcon:     const Icon(Icons.search, size: 20),
-                  hintText:       'Search history…',
-                  isDense:        true,
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  hintText: 'Search history…',
+                  isDense: true,
                   contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                  border:         OutlineInputBorder(
+                  border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12)),
                   suffixIcon: _historySearchController.text.isNotEmpty
                       ? IconButton(
@@ -1421,11 +1494,13 @@ class _ScanScreenState extends State<ScanScreen>
                 ),
                 if (hasActiveFilter)
                   Positioned(
-                    top: 4, right: 4,
+                    top: 4,
+                    right: 4,
                     child: Container(
-                      width: 8, height: 8,
+                      width: 8,
+                      height: 8,
                       decoration: BoxDecoration(
-                        color: cs.primary, shape: BoxShape.circle),
+                          color: cs.primary, shape: BoxShape.circle),
                     ),
                   ),
               ],
@@ -1434,7 +1509,7 @@ class _ScanScreenState extends State<ScanScreen>
         ),
         AnimatedSize(
           duration: const Duration(milliseconds: 220),
-          curve:    Curves.easeInOut,
+          curve: Curves.easeInOut,
           child: _filterExpanded
               ? Padding(
                   padding: const EdgeInsets.only(top: 10),
@@ -1442,10 +1517,10 @@ class _ScanScreenState extends State<ScanScreen>
                     children: [
                       Expanded(
                         child: _buildSegmentRow<_HistorySearchScope>(
-                          label:    'Filter',
-                          options:  const [
-                            (_HistorySearchScope.all,     'All'),
-                            (_HistorySearchScope.plant,   'Plant'),
+                          label: 'Filter',
+                          options: const [
+                            (_HistorySearchScope.all, 'All'),
+                            (_HistorySearchScope.plant, 'Plant'),
                             (_HistorySearchScope.disease, 'Disease'),
                           ],
                           selected: _historySearchScope,
@@ -1456,10 +1531,10 @@ class _ScanScreenState extends State<ScanScreen>
                       const SizedBox(width: 8),
                       Expanded(
                         child: _buildSegmentRow<_HistorySortMode>(
-                          label:   'Sort',
+                          label: 'Sort',
                           options: const [
-                            (_HistorySortMode.newest,          'Newest'),
-                            (_HistorySortMode.lowestConfidence,'Lowest %'),
+                            (_HistorySortMode.newest, 'Newest'),
+                            (_HistorySortMode.lowestConfidence, 'Lowest %'),
                           ],
                           selected: _historySortMode,
                           onSelected: (v) =>
@@ -1496,17 +1571,17 @@ class _ScanScreenState extends State<ScanScreen>
           spacing: 4,
           children: options.map((opt) {
             final (value, text) = opt;
-            final isSelected    = selected == value;
+            final isSelected = selected == value;
             return ChoiceChip(
               label: Text(text,
                   style: TextStyle(
                       fontSize: 11,
                       color: isSelected ? cs.onPrimary : cs.onSurface)),
-              selected:      isSelected,
+              selected: isSelected,
               selectedColor: cs.primary,
-              padding:       const EdgeInsets.symmetric(horizontal: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 4),
               visualDensity: VisualDensity.compact,
-              onSelected:    (_) => onSelected(value),
+              onSelected: (_) => onSelected(value),
             );
           }).toList(),
         ),
@@ -1515,7 +1590,7 @@ class _ScanScreenState extends State<ScanScreen>
   }
 
   List<DetectionHistoryEntry> _filteredHistoryEntries() {
-    final query    = _historySearchController.text.trim().toLowerCase();
+    final query = _historySearchController.text.trim().toLowerCase();
     final filtered = _history.where((entry) {
       if (query.isEmpty) return true;
       switch (_historySearchScope) {
@@ -1562,20 +1637,20 @@ class _ScanScreenState extends State<ScanScreen>
   // ─────────────────────────────────────────────────────────────────────────
 
   Widget _buildHistoryCard(DetectionHistoryEntry entry) {
-    final key            = _historyCardKey(entry);
-    final isExpanded     = _expandedHistoryCards.contains(key);
-    final isLowConf      = entry.confidence < 0.55;
+    final key = _historyCardKey(entry);
+    final isExpanded = _expandedHistoryCards.contains(key);
+    final isLowConf = entry.confidence < 0.55;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Dismissible(
-        key:       ValueKey(key),
+        key: ValueKey(key),
         direction: DismissDirection.endToStart,
         background: Container(
           alignment: Alignment.centerRight,
-          padding:   const EdgeInsets.only(right: 20),
+          padding: const EdgeInsets.only(right: 20),
           decoration: BoxDecoration(
-            color:        const Color(0xFFD32F2F),
+            color: const Color(0xFFD32F2F),
             borderRadius: BorderRadius.circular(16),
           ),
           child: const Column(
@@ -1584,7 +1659,9 @@ class _ScanScreenState extends State<ScanScreen>
               Icon(Icons.delete_outline, color: Colors.white, size: 28),
               SizedBox(height: 4),
               Text('Delete',
-                  style: TextStyle(color: Colors.white, fontSize: 12,
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600)),
             ],
           ),
@@ -1592,8 +1669,9 @@ class _ScanScreenState extends State<ScanScreen>
         confirmDismiss: (_) async => showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
-            title:   const Text('Delete entry?'),
-            content: Text('Remove "${entry.diseaseName ?? 'this entry'}" from history?'),
+            title: const Text('Delete entry?'),
+            content: Text(
+                'Remove "${entry.diseaseName ?? 'this entry'}" from history?'),
             actions: [
               TextButton(
                   onPressed: () => Navigator.pop(ctx, false),
@@ -1609,7 +1687,7 @@ class _ScanScreenState extends State<ScanScreen>
         child: Card(
           elevation: 0,
           child: ExpansionTile(
-            key:             PageStorageKey<String>('hist-$key'),
+            key: PageStorageKey<String>('hist-$key'),
             initiallyExpanded: isExpanded,
             onExpansionChanged: (exp) => setState(() {
               if (exp) {
@@ -1618,17 +1696,21 @@ class _ScanScreenState extends State<ScanScreen>
                 _expandedHistoryCards.remove(key);
               }
             }),
-            tilePadding:     const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            tilePadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
             leading: ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Builder(builder: (ctx) => Container(
-                width: 56, height: 56,
-                color: _surfaceVariant(ctx),
-                child: entry.imageBytes == null
-                    ? const Icon(Icons.image_outlined)
-                    : Image.memory(entry.imageBytes!, fit: BoxFit.cover),
-              )),
+              child: Builder(
+                  builder: (ctx) => Container(
+                        width: 56,
+                        height: 56,
+                        color: _surfaceVariant(ctx),
+                        child: entry.imageBytes == null
+                            ? const Icon(Icons.image_outlined)
+                            : Image.memory(entry.imageBytes!,
+                                fit: BoxFit.cover),
+                      )),
             ),
             title: Text(
               (entry.isHealthy || entry.diseaseName?.toLowerCase() == 'healthy')
@@ -1645,24 +1727,29 @@ class _ScanScreenState extends State<ScanScreen>
                   Text(entry.plantName),
                   const SizedBox(height: 6),
                   Wrap(
-                    spacing: 8, runSpacing: 4,
+                    spacing: 8,
+                    runSpacing: 4,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       // Plant confidence chip
                       _ConfidenceChip(
                         confidence: entry.plantConfidence,
-                        label:      'Plant',
+                        label: 'Plant',
                       ),
                       // Disease confidence chip
                       _ConfidenceChip(
                         confidence: entry.confidence,
-                        label:      'Disease',
+                        label: 'Disease',
                       ),
                       Text(
-                        DateFormat('dd MMM yyyy, hh:mm a').format(entry.createdAt),
+                        DateFormat('dd MMM yyyy, hh:mm a')
+                            .format(entry.createdAt),
                         style: TextStyle(
                           fontSize: 12,
-                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withValues(alpha: 0.55),
                         ),
                       ),
                     ],
@@ -1679,18 +1766,20 @@ class _ScanScreenState extends State<ScanScreen>
                   children: [
                     Expanded(
                       child: _buildPreviewTile(
-                        title:           'Original',
+                        title: 'Original',
                         fullscreenBytes: entry.imageBytes,
-                        child:           Image.memory(entry.imageBytes!, fit: BoxFit.cover),
+                        child:
+                            Image.memory(entry.imageBytes!, fit: BoxFit.cover),
                       ),
                     ),
                     if (entry.plantGradcamBytes != null) ...[
                       const SizedBox(width: 8),
                       Expanded(
                         child: _buildPreviewTile(
-                          title:           'Plant CAM',
+                          title: 'Plant CAM',
                           fullscreenBytes: entry.plantGradcamBytes,
-                          child:           Image.memory(entry.plantGradcamBytes!, fit: BoxFit.cover),
+                          child: Image.memory(entry.plantGradcamBytes!,
+                              fit: BoxFit.cover),
                         ),
                       ),
                     ],
@@ -1698,9 +1787,10 @@ class _ScanScreenState extends State<ScanScreen>
                       const SizedBox(width: 8),
                       Expanded(
                         child: _buildPreviewTile(
-                          title:           'Disease CAM',
+                          title: 'Disease CAM',
                           fullscreenBytes: entry.gradcamBytes,
-                          child:           Image.memory(entry.gradcamBytes!, fit: BoxFit.cover),
+                          child: Image.memory(entry.gradcamBytes!,
+                              fit: BoxFit.cover),
                         ),
                       ),
                     ],
@@ -1714,13 +1804,16 @@ class _ScanScreenState extends State<ScanScreen>
                   // Plant & disease confidence
                   Row(
                     children: [
-                      Expanded(child: _buildMiniConfidenceBar(
+                      Expanded(
+                          child: _buildMiniConfidenceBar(
                         label: 'Plant (${entry.plantName})',
                         confidence: entry.plantConfidence,
                       )),
                       const SizedBox(width: 10),
-                      Expanded(child: _buildMiniConfidenceBar(
-                        label: 'Disease${entry.diseaseName != null ? ' (${entry.diseaseName!})' : ''}',
+                      Expanded(
+                          child: _buildMiniConfidenceBar(
+                        label:
+                            'Disease${entry.diseaseName != null ? ' (${entry.diseaseName!})' : ''}',
                         confidence: entry.confidence,
                       )),
                     ],
@@ -1735,7 +1828,9 @@ class _ScanScreenState extends State<ScanScreen>
                       _DetailLine(label: 'Cause', value: entry.diseaseCause!),
                     if (entry.diseaseDescription != null) ...[
                       const SizedBox(height: 10),
-                      _DetailLine(label: 'Description', value: entry.diseaseDescription!),
+                      _DetailLine(
+                          label: 'Description',
+                          value: entry.diseaseDescription!),
                     ],
                     if (entry.diseaseRemedy != null) ...[
                       const SizedBox(height: 10),
@@ -1743,7 +1838,8 @@ class _ScanScreenState extends State<ScanScreen>
                     ],
                     if (entry.diseasePrevention != null) ...[
                       const SizedBox(height: 10),
-                      _DetailLine(label: 'Prevention', value: entry.diseasePrevention!),
+                      _DetailLine(
+                          label: 'Prevention', value: entry.diseasePrevention!),
                     ],
                   ],
                   if (entry.advice != null && entry.advice!.isNotEmpty) ...[
@@ -1753,8 +1849,8 @@ class _ScanScreenState extends State<ScanScreen>
                   if (isLowConf && entry.message != null) ...[
                     const SizedBox(height: 10),
                     _DetailLine(
-                      label:      'Note',
-                      value:      entry.message!,
+                      label: 'Note',
+                      value: entry.message!,
                       valueColor: Colors.orange.shade800,
                     ),
                   ],
@@ -1771,7 +1867,7 @@ class _ScanScreenState extends State<ScanScreen>
     required String label,
     required double confidence,
   }) {
-    final pct   = confidence * 100;
+    final pct = confidence * 100;
     final color = pct >= 80
         ? AppColors.green600
         : pct >= 55
@@ -1781,23 +1877,22 @@ class _ScanScreenState extends State<ScanScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-            style: TextStyle(fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: color)),
+            style: TextStyle(
+                fontSize: 11, fontWeight: FontWeight.w600, color: color)),
         const SizedBox(height: 4),
         ClipRRect(
           borderRadius: BorderRadius.circular(4),
           child: LinearProgressIndicator(
-            value:           confidence,
-            minHeight:       6,
+            value: confidence,
+            minHeight: 6,
             backgroundColor: color.withValues(alpha: 0.12),
-            valueColor:      AlwaysStoppedAnimation<Color>(color),
+            valueColor: AlwaysStoppedAnimation<Color>(color),
           ),
         ),
         const SizedBox(height: 2),
         Text('${pct.toStringAsFixed(1)}%',
-            style: TextStyle(fontSize: 11,
-                fontWeight: FontWeight.w700, color: color)),
+            style: TextStyle(
+                fontSize: 11, fontWeight: FontWeight.w700, color: color)),
       ],
     );
   }
@@ -1812,17 +1907,18 @@ class _ScanScreenState extends State<ScanScreen>
   }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color:        _surfaceVariant(context),
+        color: _surfaceVariant(context),
         borderRadius: BorderRadius.circular(16),
-        border:       Border.all(color: _borderColor(context)),
+        border: Border.all(color: _borderColor(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+              style:
+                  const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
           const SizedBox(height: 12),
           ...children,
         ],
@@ -1840,7 +1936,7 @@ class _ScanScreenState extends State<ScanScreen>
     void openFullscreen() {
       if (fullscreenBytes == null) return;
       showDialog<void>(
-        context:      context,
+        context: context,
         barrierColor: Colors.black87,
         builder: (ctx) => GestureDetector(
           onTap: () => Navigator.pop(ctx),
@@ -1857,14 +1953,18 @@ class _ScanScreenState extends State<ScanScreen>
                     ),
                   ),
                   Positioned(
-                    top: 8, right: 8,
+                    top: 8,
+                    right: 8,
                     child: IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                      icon: const Icon(Icons.close,
+                          color: Colors.white, size: 28),
                       onPressed: () => Navigator.pop(ctx),
                     ),
                   ),
                   Positioned(
-                    bottom: 16, left: 0, right: 0,
+                    bottom: 16,
+                    left: 0,
+                    right: 0,
                     child: Text(title,
                         textAlign: TextAlign.center,
                         style: const TextStyle(
@@ -1887,9 +1987,9 @@ class _ScanScreenState extends State<ScanScreen>
       child: Container(
         height: 140,
         decoration: BoxDecoration(
-          color:        isDark ? AppColors.gray800 : AppColors.green50,
+          color: isDark ? AppColors.gray800 : AppColors.green50,
           borderRadius: BorderRadius.circular(14),
-          border:       Border.all(
+          border: Border.all(
               color: isDark ? AppColors.gray700 : AppColors.green100),
         ),
         child: ClipRRect(
@@ -1902,7 +2002,7 @@ class _ScanScreenState extends State<ScanScreen>
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
-                    end:   Alignment.bottomCenter,
+                    end: Alignment.bottomCenter,
                     colors: [
                       Colors.black.withValues(alpha: 0.03),
                       Colors.black.withValues(alpha: 0.30),
@@ -1911,7 +2011,9 @@ class _ScanScreenState extends State<ScanScreen>
                 ),
               ),
               Positioned(
-                left: 8, right: 8, bottom: 8,
+                left: 8,
+                right: 8,
+                bottom: 8,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -1969,8 +2071,7 @@ class _ScanScreenState extends State<ScanScreen>
                     Align(
                       alignment: Alignment.centerLeft,
                       child: TextButton(
-                          onPressed: onAction,
-                          child: Text(actionLabel)),
+                          onPressed: onAction, child: Text(actionLabel)),
                     ),
                   ],
                 ],
@@ -1980,7 +2081,8 @@ class _ScanScreenState extends State<ScanScreen>
               const Padding(
                 padding: EdgeInsets.only(top: 4),
                 child: SizedBox(
-                    width: 18, height: 18,
+                    width: 18,
+                    height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2)),
               ),
           ],
@@ -2003,7 +2105,7 @@ class _ConfidenceChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final pct    = confidence * 100;
+    final pct = confidence * 100;
 
     final Color bg, fg;
     if (pct >= 70) {
@@ -2020,12 +2122,14 @@ class _ConfidenceChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color:        bg,
+        color: bg,
         borderRadius: BorderRadius.circular(20),
-        border:       Border.all(color: fg.withValues(alpha: 0.30)),
+        border: Border.all(color: fg.withValues(alpha: 0.30)),
       ),
       child: Text(
-        label != null ? '$label ${pct.toStringAsFixed(1)}%' : '${pct.toStringAsFixed(1)}%',
+        label != null
+            ? '$label ${pct.toStringAsFixed(1)}%'
+            : '${pct.toStringAsFixed(1)}%',
         style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: fg),
       ),
     );
@@ -2049,15 +2153,22 @@ class _DetailLine extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
-        const SizedBox(height: 2),
-        Builder(builder: (ctx) => Text(
-          value,
-          style: TextStyle(
-            color: valueColor ??
-                Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.65),
-          ),
-        )),
+        Text(label,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+        const SizedBox(height: 4),
+        Builder(
+            builder: (ctx) => Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.6,
+                    color: valueColor ??
+                        Theme.of(ctx)
+                            .colorScheme
+                            .onSurface
+                            .withValues(alpha: 0.7),
+                  ),
+                )),
       ],
     );
   }

@@ -1,15 +1,49 @@
 # =============================================================================
-# Midori — Server Requirements
-# Python 3.13 · TensorFlow 2.21 · Keras 3 · Django 5
-# =============================================================================
-#
-# Full install (recommended):
-#   pip install -r requirements/ml.txt
-#
-# Core only (no ML):
-#   pip install -r requirements/base.txt
-#
-# This file is a convenience shortcut — it installs everything.
+# Plant Disease Detection — Unified Dependencies (No Versions)
+# Install: pip install -r requirements.txt
 # =============================================================================
 
--r requirements/ml.txt
+# Django & REST Framework
+Django
+djangorestframework
+django-cors-headers
+
+# Django Runtime
+asgiref
+sqlparse
+tzdata
+
+# Database
+psycopg2-binary
+
+# Image Processing & Computer Vision
+pillow
+opencv-python
+
+# Configuration
+python-dotenv
+
+# Machine Learning & Array Processing
+numpy
+tensorflow
+
+# TensorFlow Transitive Dependencies
+absl-py
+astunparse
+flatbuffers
+gast
+google-auth
+google-auth-oauthlib
+google-pasta
+grpcio
+h5py
+opt-einsum
+packaging
+protobuf
+tensorboard
+termcolor
+typing-extensions
+wrapt
+
+# HTTP Client (for scripts/smoke_test.py and scripts/test_detection.py)
+requests

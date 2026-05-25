@@ -20,12 +20,12 @@ Photo → Stage 1 (MobileNetV2 Plant ID, 6 classes)
 
 ## Tech Stack
 
-| Layer    | Technology |
-|----------|-----------|
-| ML       | TensorFlow 2.21 · Keras 3 · OpenCV · MobileNetV2 |
-| Backend  | Django 5 · Django REST Framework · PostgreSQL |
-| Mobile   | Flutter 3 · Dart · Riverpod |
-| Python   | 3.13 |
+| Layer   | Technology                                       |
+| ------- | ------------------------------------------------ |
+| ML      | TensorFlow 2.21 · Keras 3 · OpenCV · MobileNetV2 |
+| Backend | Django 5 · Django REST Framework · PostgreSQL    |
+| Mobile  | Flutter 3 · Dart · Riverpod                      |
+| Python  | 3.13                                             |
 
 ---
 
@@ -51,12 +51,9 @@ Plant_Disease_Detection/
 │   │   ├── setup_models.py Extract .keras from weights/
 │   │   ├── smoke_test.py   Full two-stage API smoke test
 │   │   └── test_detection.py  Quick integration test (--image / --override)
-│   ├── requirements/
-│   │   ├── base.txt        Django + OpenCV + Pillow
-│   │   └── ml.txt          + TensorFlow 2.21 (Python 3.13)
 │   ├── constants.py        Thresholds, status messages
 │   ├── manage.py
-│   └── requirements.txt    → requirements/ml.txt shortcut
+│   └── requirements.txt    All unified dependencies (Django + TensorFlow)
 │
 └── mobile/                 Flutter client app
     └── lib/
@@ -75,6 +72,7 @@ Plant_Disease_Detection/
 ## Quick Start
 
 ### Prerequisites
+
 - Python 3.13 (installed)
 - PostgreSQL running locally
 - Flutter SDK ≥ 3.5
@@ -136,6 +134,7 @@ flutter run --dart-define=MIDORI_BASE_URL=http://192.168.x.x:8000
 ## API Reference
 
 ### `GET /api/detections/health/`
+
 ```json
 {
   "status": "ok",
@@ -150,22 +149,22 @@ flutter run --dart-define=MIDORI_BASE_URL=http://192.168.x.x:8000
 
 **Form fields:**
 
-| Field | Type | Required | Notes |
-|-------|------|:--------:|-------|
-| `uploaded_image` | File | ✅ | JPEG/PNG/WebP, max 10 MB |
-| `plant_override` | String | ❌ | Skip Stage 1 (e.g. `Potato`) |
+| Field            | Type   | Required | Notes                        |
+| ---------------- | ------ | :------: | ---------------------------- |
+| `uploaded_image` | File   |    ✅    | JPEG/PNG/WebP, max 10 MB     |
+| `plant_override` | String |    ❌    | Skip Stage 1 (e.g. `Potato`) |
 
 **Response status values:**
 
-| `status` | Meaning |
-|---------|---------|
-| `success` | Disease detected with high confidence |
-| `healthy` | No disease signs detected |
+| `status`         | Meaning                                    |
+| ---------------- | ------------------------------------------ |
+| `success`        | Disease detected with high confidence      |
+| `healthy`        | No disease signs detected                  |
 | `low_confidence` | Below 40 % confidence — retake recommended |
-| `not_recognized` | Stage-1 plant ID failed |
-| `no_model` | Plant found but no disease model exists |
-| `not_a_plant` | No green leaf detected in the image |
-| `failed` | Internal server error |
+| `not_recognized` | Stage-1 plant ID failed                    |
+| `no_model`       | Plant found but no disease model exists    |
+| `not_a_plant`    | No green leaf detected in the image        |
+| `failed`         | Internal server error                      |
 
 ---
 
