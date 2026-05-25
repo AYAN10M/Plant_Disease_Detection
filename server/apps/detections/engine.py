@@ -6,14 +6,14 @@ Architecture
 ------------
 Stage 1 : plant_identifier.keras  — 6-class plant identification
           Classes: Apple, Corn, Grape, Potato, Tomato, Pepper
+          (Corn & Tomato are classified but have no Stage 2 model)
 
-Stage 2 : Per-plant disease models
+Stage 2 : Per-plant disease models (4 supported plants)
           Apple.keras   — 4 classes : Apple Scab | Black Rot | Cedar Apple Rust | Healthy
           Potato.keras  — 3 classes : Early Blight | Late Blight | Healthy
           Grape.keras   — 4 classes : Black Rot | Esca (Black Measles) |
                                       Leaf Blight (Isariopsis Leaf Spot) | Healthy
           Pepper.keras  — 2 classes : Bacterial Spot | Healthy
-          Corn/Tomato   — no disease model yet
 
 Preprocessing
 -------------
@@ -160,7 +160,11 @@ def _gradcam_dir(sub: str) -> Path:
 # Class labels
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Stage 1 output indices — MUST match training order. Do NOT remove entries.
 PLANT_CLASSES = ["Apple", "Corn", "Grape", "Potato", "Tomato", "Pepper"]
+
+# Plants that have a trained Stage 2 disease model.
+SUPPORTED_PLANTS = {"Apple", "Grape", "Potato", "Pepper"}
 
 DISEASE_CLASSES: dict[str, list[str]] = {
     "Apple":  ["Apple Scab", "Black Rot", "Cedar Apple Rust", "Healthy"],
@@ -172,7 +176,6 @@ DISEASE_CLASSES: dict[str, list[str]] = {
         "Healthy",
     ],
     "Pepper": ["Bacterial Spot", "Healthy"],
-    # Corn and Tomato: no disease model yet
 }
 
 # ─────────────────────────────────────────────────────────────────────────────

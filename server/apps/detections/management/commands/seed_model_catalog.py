@@ -10,8 +10,7 @@ What it does
 ------------
 1. Deletes all existing Detection, Disease, Plant records (wrapped in a transaction).
 2. Optionally removes media sub-directories.
-3. Creates one Plant record per entry in DISEASE_CLASSES (plants WITH a disease model).
-   Corn and Tomato are deliberately excluded — no disease model exists for them.
+3. Creates one Plant record per entry in DISEASE_CLASSES (plants with a disease model).
 4. Creates one Disease record per class label for each plant.
 """
 
@@ -33,8 +32,7 @@ from plants.models import Plant
 # ─────────────────────────────────────────────────────────────────────────────
 
 PLANT_METADATA: dict[str, dict] = {
-    # Only plants that have a disease model are seeded to the database.
-    # Corn and Tomato are excluded — no disease model exists for them.
+    # Only plants with a trained disease model are seeded.
     "Apple": {
         "scientific_name": "Malus domestica",
         "family": "Rosaceae",
@@ -562,8 +560,7 @@ class Command(BaseCommand):
         plants_created   = 0
         diseases_created = 0
 
-        # Iterate ONLY over plants that have a disease model.
-        # Corn and Tomato are excluded — no model, no DB record.
+        # Iterate only over plants with a trained disease model.
         for plant_name in DISEASE_CLASSES:
             meta  = PLANT_METADATA.get(plant_name, {})
             plant = Plant.objects.create(

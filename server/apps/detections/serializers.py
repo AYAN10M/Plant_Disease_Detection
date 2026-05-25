@@ -13,8 +13,7 @@ _ALLOWED_CONTENT_TYPES = {
     "image/heic", "image/heif",
 }
 
-# Only plants that have a disease model are valid overrides.
-# Corn and Tomato are excluded — no disease model exists for them yet.
+# Only plants with a trained disease model are valid overrides.
 PLANT_OVERRIDE_CHOICES = ["", "Apple", "Grape", "Potato", "Pepper"]
 
 

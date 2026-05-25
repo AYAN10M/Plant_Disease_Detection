@@ -37,12 +37,12 @@ class MidoriApiClient {
 
     if (kIsWeb) return 'http://localhost:8000';
 
+    // On Android (both emulator and real device), use the LAN IP.
+    // 10.0.2.2 only works inside the emulator; LAN IP works everywhere.
     if (Platform.isAndroid) {
-      // Emulator loopback in debug; LAN IP in release.
-      return kDebugMode
-          ? 'http://10.0.2.2:8000'
-          : 'http://${AppConstants.lanIp}:8000';
+      return 'http://${AppConstants.lanIp}:8000';
     }
+
     // iOS, macOS, Windows, Linux
     return 'http://localhost:8000';
   }
