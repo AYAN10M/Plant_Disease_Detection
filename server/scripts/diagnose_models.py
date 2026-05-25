@@ -77,7 +77,7 @@ def diagnose():
         load_fn = tf.keras.models.load_model
 
     try:
-        from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
+        from tensorflow.keras.applications.mobilenet_v2 import preprocess_input  # pyrefly: ignore[missing-import]
     except ImportError:
         def preprocess_input(x): return (x / 127.5) - 1.0
 

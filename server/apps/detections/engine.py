@@ -76,7 +76,7 @@ def _import_keras():
         return tf.keras
     except Exception:
         pass
-    import tf_keras
+    import tf_keras  # pyrefly: ignore[missing-import]
     return tf_keras
 
 
@@ -86,7 +86,7 @@ def _mobilenet_preprocess(img_arr: "np.ndarray") -> "np.ndarray":
     Uses tensorflow.keras directly (same path the models were trained with).
     """
     try:
-        from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
+        from tensorflow.keras.applications.mobilenet_v2 import preprocess_input  # pyrefly: ignore[missing-import]
         return preprocess_input(img_arr)
     except ImportError:
         pass
@@ -280,12 +280,17 @@ def preprocess_image(image_path: str, target_size: tuple = (224, 224)) -> np.nda
         if img_bgr is not None:
             img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
 
-            # Normalise brightness before any colour-based isolation
+            # Normalise brightness BEFORE colour-based isolation so the HSV
+            # mask is computed on the normalised image, not the original dark one.
             img_rgb = _normalize_brightness(img_rgb)
-            h, w    = img_rgb.shape[:2]
 
-            # ── HSV green isolation (hue 25–95) ───────────────────────────
-            hsv     = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
+            # Re-derive BGR from normalised RGB so HSV isolation is consistent.
+            img_bgr_norm = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
+
+            h, w = img_rgb.shape[:2]
+
+            # ── HSV green isolation (hue 25–95) — run on NORMALISED image ──
+            hsv     = cv2.cvtColor(img_bgr_norm, cv2.COLOR_BGR2HSV)
             lower_g = np.array([25,  40,  40])
             upper_g = np.array([95, 255, 255])
             mask    = cv2.inRange(hsv, lower_g, upper_g)
@@ -299,7 +304,7 @@ def preprocess_image(image_path: str, target_size: tuple = (224, 224)) -> np.nda
                 mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
             )
             if contours:
-                largest     = max(contours, key=cv2.contourArea)
+                largest      = max(contours, key=cv2.contourArea)
                 x, y, bw, bh = cv2.boundingRect(largest)
                 pad_x = int(bw * 0.10)
                 pad_y = int(bh * 0.10)
@@ -317,8 +322,8 @@ def preprocess_image(image_path: str, target_size: tuple = (224, 224)) -> np.nda
                     cx - side // 2: cx + side // 2,
                 ]
 
-            # Use BICUBIC — matches PIL default and training-time preprocessing
-            img_pil = Image.fromarray(img_rgb).resize(target_size, Image.BICUBIC)
+            # Resize — match notebook (no explicit resampling filter arg)
+            img_pil = Image.fromarray(img_rgb).resize(target_size)
             img_arr = np.array(img_pil, dtype=np.float32)
             img_arr = _mobilenet_preprocess(img_arr)
             return np.expand_dims(img_arr, axis=0)
@@ -329,7 +334,7 @@ def preprocess_image(image_path: str, target_size: tuple = (224, 224)) -> np.nda
         img_pil = raw.convert("RGB")
         img_arr_raw = np.array(img_pil, dtype=np.uint8)
         img_arr_raw = _normalize_brightness(img_arr_raw)
-        img_pil = Image.fromarray(img_arr_raw).resize(target_size, Image.BICUBIC)
+        img_pil = Image.fromarray(img_arr_raw).resize(target_size)
     img_arr = np.array(img_pil, dtype=np.float32)
     img_arr = _mobilenet_preprocess(img_arr)
     return np.expand_dims(img_arr, axis=0)
