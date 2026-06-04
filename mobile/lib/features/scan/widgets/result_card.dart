@@ -9,10 +9,6 @@ import 'score_chart.dart';
 import 'stage_confidence_bar.dart';
 import 'status_banner.dart';
 
-/// The full detection result card shown after a scan completes.
-///
-/// Composes StatusBanner, StageConfidenceBar, ScoreChart, DetailGroup,
-/// and action buttons into a single scrollable card.
 class ResultCard extends StatelessWidget {
   const ResultCard({
     super.key,
@@ -45,7 +41,7 @@ class ResultCard extends StatelessWidget {
 
             // ── Stage 1 — Plant confidence ───────────────────────────────
             StageConfidenceBar(
-              stageLabel: 'Stage 1 — Plant',
+              stageLabel: 'Stage 1: Plant Identification',
               label: result.plantName.isEmpty ? 'Unknown' : result.plantName,
               confidence: result.plantConfidence,
             ),
@@ -54,7 +50,7 @@ class ResultCard extends StatelessWidget {
             // ── Stage 2 — Disease confidence ─────────────────────────────
             if (result.diseaseName != null || response.effectivelyHealthy) ...[
               StageConfidenceBar(
-                stageLabel: 'Stage 2 — Disease',
+                stageLabel: 'Stage 2: Disease Detection',
                 label: response.effectivelyHealthy
                     ? 'Healthy 🌱'
                     : (result.diseaseName ?? 'Unknown'),

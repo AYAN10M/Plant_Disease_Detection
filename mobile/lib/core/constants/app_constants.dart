@@ -12,7 +12,7 @@ class AppConstants {
 
   static const String lanIp = String.fromEnvironment(
     'MIDORI_SERVER_IP',
-    defaultValue: '192.168.29.92',
+    defaultValue: '172.25.0.177',
   );
 
   // Image limits
