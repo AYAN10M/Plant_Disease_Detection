@@ -32,16 +32,29 @@
 
 Midori is a full-stack plant disease detection system designed for agricultural diagnostics. It combines computer vision with a mobile-first interface to help farmers and plant enthusiasts identify diseases from leaf photographs.
 
+## Workflow Map
+
+If you want to understand the application end to end, start with these files in this order:
+
+1. [mobile/lib/main.dart](mobile/lib/main.dart) launches the Flutter app and opens the scan screen.
+2. [mobile/lib/features/scan/screens/scan_screen.dart](mobile/lib/features/scan/screens/scan_screen.dart) handles image picking, permissions, health checks, detection submission, and history saving.
+3. [mobile/lib/core/network/api_service.dart](mobile/lib/core/network/api_service.dart) sends the multipart request to the backend and fetches Grad-CAM bytes.
+4. [server/config/urls.py](server/config/urls.py) routes `/api/detections/` and the catalog endpoints.
+5. [server/apps/detections/views.py](server/apps/detections/views.py) validates the request, creates the Detection record, and calls the inference engine.
+6. [server/apps/detections/engine.py](server/apps/detections/engine.py) runs the two-stage plant and disease models, applies thresholds, and generates Grad-CAM output.
+7. [mobile/lib/features/scan/models/detection_model.dart](mobile/lib/features/scan/models/detection_model.dart) maps the backend response into UI/history models.
+8. [mobile/lib/features/scan/services/history_service.dart](mobile/lib/features/scan/services/history_service.dart) persists scan history locally.
+
 ### Key Features
 
-| Feature | Description |
-|---------|-------------|
-| **Two-Stage ML Pipeline** | Stage 1 identifies the plant species (6 classes). Stage 2 runs a plant-specific disease model. |
-| **Grad-CAM Heatmaps** | Visual explanations for both stages showing which regions of the leaf influenced the prediction. |
-| **HSV Leaf Isolation** | OpenCV preprocessing isolates the green leaf from background, improving model accuracy. |
+| Feature                   | Description                                                                                         |
+| ------------------------- | --------------------------------------------------------------------------------------------------- |
+| **Two-Stage ML Pipeline** | Stage 1 identifies the plant species (6 classes). Stage 2 runs a plant-specific disease model.      |
+| **Grad-CAM Heatmaps**     | Visual explanations for both stages showing which regions of the leaf influenced the prediction.    |
+| **HSV Leaf Isolation**    | OpenCV preprocessing isolates the green leaf from background, improving model accuracy.             |
 | **Calibrated Thresholds** | Per-plant confidence thresholds prevent false positives from biased models (e.g., Grape Esca bias). |
-| **Offline History** | Flutter app stores scan history locally with base64-encoded images for offline review. |
-| **Dark Mode** | Full dark/light theme support with a nature-inspired green palette. |
+| **Offline History**       | Flutter app stores scan history locally with base64-encoded images for offline review.              |
+| **Dark Mode**             | Full dark/light theme support with a nature-inspired green palette.                                 |
 
 ---
 
@@ -93,24 +106,24 @@ Midori is a full-stack plant disease detection system designed for agricultural 
 
 ### Stage 1 — Plant Identification
 
-| Property | Value |
-|----------|-------|
-| **Model** | MobileNetV2 (transfer learning) |
-| **Input** | 224×224 RGB, normalized to [0, 1] |
-| **Classes** | Apple, Corn, Grape, Potato, Tomato, Pepper |
-| **Output** | Softmax probabilities for all 6 classes |
-| **Threshold** | 40% minimum (configurable per-request) |
+| Property      | Value                                      |
+| ------------- | ------------------------------------------ |
+| **Model**     | MobileNetV2 (transfer learning)            |
+| **Input**     | 224×224 RGB, normalized to [0, 1]          |
+| **Classes**   | Apple, Corn, Grape, Potato, Tomato, Pepper |
+| **Output**    | Softmax probabilities for all 6 classes    |
+| **Threshold** | 40% minimum (configurable per-request)     |
 
 ### Stage 2 — Disease Detection
 
 Runs only for plants with a trained disease model (Apple, Grape, Potato, Pepper).
 
-| Plant | Disease Classes |
-|-------|----------------|
-| **Apple** | Apple Scab, Black Rot, Cedar Apple Rust, Healthy |
-| **Grape** | Black Rot, Esca (Black Measles), Leaf Blight, Healthy |
-| **Potato** | Early Blight, Late Blight, Healthy |
-| **Pepper** | Bacterial Spot, Healthy |
+| Plant      | Disease Classes                                       |
+| ---------- | ----------------------------------------------------- |
+| **Apple**  | Apple Scab, Black Rot, Cedar Apple Rust, Healthy      |
+| **Grape**  | Black Rot, Esca (Black Measles), Leaf Blight, Healthy |
+| **Potato** | Early Blight, Late Blight, Healthy                    |
+| **Pepper** | Bacterial Spot, Healthy                               |
 
 ### Preprocessing
 
@@ -195,7 +208,7 @@ Plant_Disease_Detection/
 
 ### Prerequisites
 
-- Python 3.10+
+- Python 3.10
 - PostgreSQL 14+
 - Flutter 3.19+ & Dart 3.3+
 - Node.js (optional, for tooling)
@@ -273,11 +286,11 @@ POST /api/detections/
 Content-Type: multipart/form-data
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `uploaded_image` | File | ✅ | Leaf photo (JPEG/PNG/WebP, max 10 MB) |
-| `plant_override` | String | ❌ | Skip Stage 1; force a specific plant (e.g., "Apple") |
-| `confidence_threshold` | Float | ❌ | Min confidence % for Stage 1 (default: 40.0) |
+| Field                  | Type   | Required | Description                                          |
+| ---------------------- | ------ | -------- | ---------------------------------------------------- |
+| `uploaded_image`       | File   | ✅       | Leaf photo (JPEG/PNG/WebP, max 10 MB)                |
+| `plant_override`       | String | ❌       | Skip Stage 1; force a specific plant (e.g., "Apple") |
+| `confidence_threshold` | Float  | ❌       | Min confidence % for Stage 1 (default: 40.0)         |
 
 **Response statuses:** `success`, `healthy`, `low_confidence`, `not_recognized`, `no_model`, `not_a_plant`
 
@@ -298,37 +311,37 @@ GET /api/diseases/<id>/       # Disease detail
 
 The Flutter app follows a **feature-first** structure with 15 extracted UI components:
 
-| Widget | Responsibility |
-|--------|---------------|
-| `ScanScreen` | State management shell, business logic, navigation |
-| `PlantOverrideDropdown` | Plant selection dropdown (Auto-detect or manual) |
-| `ConfidenceSlider` | Min confidence threshold slider with guidance text |
-| `ImageCard` | Three-panel preview (Original + Plant CAM + Disease CAM) |
-| `ResultCard` | Full detection result with banners, bars, details |
-| `StatusBanner` | Color-coded status header (healthy/disease/error) |
-| `StageConfidenceBar` | Animated confidence bar for a single stage |
-| `ScoreChart` | All-class score bar chart |
-| `HistoryCard` | Expandable history entry with swipe-to-delete |
-| `HistoryControls` | Search + filter + sort controls |
-| `NoticeCard` | Feedback/error/loading notice |
-| `DetailGroup` | Bordered section container |
-| `DetailLine` | Label + value row |
-| `ConfidenceChip` | Color-coded confidence badge |
-| `PreviewTile` | Image preview with fullscreen support |
-| `FullscreenImageViewer` | Pinch-to-zoom fullscreen dialog |
+| Widget                  | Responsibility                                           |
+| ----------------------- | -------------------------------------------------------- |
+| `ScanScreen`            | State management shell, business logic, navigation       |
+| `PlantOverrideDropdown` | Plant selection dropdown (Auto-detect or manual)         |
+| `ConfidenceSlider`      | Min confidence threshold slider with guidance text       |
+| `ImageCard`             | Three-panel preview (Original + Plant CAM + Disease CAM) |
+| `ResultCard`            | Full detection result with banners, bars, details        |
+| `StatusBanner`          | Color-coded status header (healthy/disease/error)        |
+| `StageConfidenceBar`    | Animated confidence bar for a single stage               |
+| `ScoreChart`            | All-class score bar chart                                |
+| `HistoryCard`           | Expandable history entry with swipe-to-delete            |
+| `HistoryControls`       | Search + filter + sort controls                          |
+| `NoticeCard`            | Feedback/error/loading notice                            |
+| `DetailGroup`           | Bordered section container                               |
+| `DetailLine`            | Label + value row                                        |
+| `ConfidenceChip`        | Color-coded confidence badge                             |
+| `PreviewTile`           | Image preview with fullscreen support                    |
+| `FullscreenImageViewer` | Pinch-to-zoom fullscreen dialog                          |
 
 ---
 
 ## Supported Plants & Diseases
 
-| Plant | Scientific Name | Disease Classes |
-|-------|----------------|-----------------|
-| 🍎 Apple | *Malus domestica* | Apple Scab, Black Rot, Cedar Apple Rust, Healthy |
-| 🍇 Grape | *Vitis vinifera* | Black Rot, Esca (Black Measles), Leaf Blight, Healthy |
-| 🥔 Potato | *Solanum tuberosum* | Early Blight, Late Blight, Healthy |
-| 🌶️ Pepper | *Capsicum annuum* | Bacterial Spot, Healthy |
-| 🌽 Corn | *Zea mays* | *Stage 1 only — no disease model* |
-| 🍅 Tomato | *Solanum lycopersicum* | *Stage 1 only — no disease model* |
+| Plant     | Scientific Name        | Disease Classes                                       |
+| --------- | ---------------------- | ----------------------------------------------------- |
+| 🍎 Apple  | _Malus domestica_      | Apple Scab, Black Rot, Cedar Apple Rust, Healthy      |
+| 🍇 Grape  | _Vitis vinifera_       | Black Rot, Esca (Black Measles), Leaf Blight, Healthy |
+| 🥔 Potato | _Solanum tuberosum_    | Early Blight, Late Blight, Healthy                    |
+| 🌶️ Pepper | _Capsicum annuum_      | Bacterial Spot, Healthy                               |
+| 🌽 Corn   | _Zea mays_             | _Stage 1 only — no disease model_                     |
+| 🍅 Tomato | _Solanum lycopersicum_ | _Stage 1 only — no disease model_                     |
 
 ---
 
@@ -336,25 +349,25 @@ The Flutter app follows a **feature-first** structure with 15 extracted UI compo
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SECRET_KEY` | — | Django secret key (required) |
-| `DEBUG` | `True` | Django debug mode |
-| `ALLOWED_HOSTS` | `localhost,...` | Comma-separated allowed hosts |
-| `DB_NAME` | `plant_disease` | PostgreSQL database name |
-| `DB_USER` | `postgres` | Database user |
-| `DB_PASSWORD` | — | Database password (required) |
-| `DB_HOST` | `localhost` | Database host |
-| `DB_PORT` | `5432` | Database port |
-| `CORS_ALLOWED_ORIGINS` | — | Comma-separated CORS origins |
+| Variable               | Default         | Description                   |
+| ---------------------- | --------------- | ----------------------------- |
+| `SECRET_KEY`           | —               | Django secret key (required)  |
+| `DEBUG`                | `True`          | Django debug mode             |
+| `ALLOWED_HOSTS`        | `localhost,...` | Comma-separated allowed hosts |
+| `DB_NAME`              | `plant_disease` | PostgreSQL database name      |
+| `DB_USER`              | `postgres`      | Database user                 |
+| `DB_PASSWORD`          | —               | Database password (required)  |
+| `DB_HOST`              | `localhost`     | Database host                 |
+| `DB_PORT`              | `5432`          | Database port                 |
+| `CORS_ALLOWED_ORIGINS` | —               | Comma-separated CORS origins  |
 
 ### Per-Plant Confidence Thresholds
 
 Defined in `server/constants.py`:
 
-| Plant | Threshold | Rationale |
-|-------|-----------|-----------|
-| Apple | 55% | Well-calibrated model |
-| Potato | 55% | Well-calibrated model |
-| Grape | 75% | Systematic Esca bias on dark/featureless images |
-| Pepper | 55% | Well-calibrated model |
+| Plant  | Threshold | Rationale                                       |
+| ------ | --------- | ----------------------------------------------- |
+| Apple  | 55%       | Well-calibrated model                           |
+| Potato | 55%       | Well-calibrated model                           |
+| Grape  | 75%       | Systematic Esca bias on dark/featureless images |
+| Pepper | 55%       | Well-calibrated model                           |

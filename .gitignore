@@ -27,6 +27,14 @@ server/media/
 server/static/
 db.sqlite3
 
+# Environment files (contain secrets — NEVER commit)
+server/.env
+.env
+
+# Debug / test scripts (dev-only, not part of the project)
+server/test_*.py
+server/test_output.txt
+
 # ── Machine Learning ──────────────────────────────────────────────────────────
 # Extracted model files (large — regenerate with  python scripts/setup_models.py)
 server/ml/models/

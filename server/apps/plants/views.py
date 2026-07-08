@@ -13,3 +13,4 @@ class PlantDetailView(generics.RetrieveAPIView):
     queryset           = Plant.objects.all()
     serializer_class   = PlantDetailSerializer
     permission_classes = [permissions.AllowAny]
+    
