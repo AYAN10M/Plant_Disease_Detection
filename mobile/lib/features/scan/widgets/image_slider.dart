@@ -20,6 +20,7 @@ class ImageSlide {
 
 /// Swipeable image viewer — shows one image at a time with animated
 /// dot indicators, arrow navigation, and tap-to-fullscreen.
+/// Slide 1 = Original uploaded photo, Slide 2 = Grad-CAM heatmap.
 class ImageSlider extends StatefulWidget {
   const ImageSlider({
     super.key,
@@ -28,13 +29,15 @@ class ImageSlider extends StatefulWidget {
   });
 
   /// Creates slides from live scan data.
+  /// Slide 1: Original uploaded photo
+  /// Slide 2: Disease Grad-CAM (the main heatmap)
   factory ImageSlider.fromScanData({
     Key? key,
     required Uint8List? selectedImageBytes,
     required Uint8List? plantGradcamBytes,
     required Uint8List? diseaseGradcamBytes,
     required bool detecting,
-    double height = 220,
+    double height = 260,
   }) {
     final slides = <ImageSlide>[];
 
@@ -46,37 +49,20 @@ class ImageSlider extends StatefulWidget {
       ));
     }
 
-    if (plantGradcamBytes != null) {
+    // Show disease Grad-CAM as the second slide
+    final camBytes = diseaseGradcamBytes ?? plantGradcamBytes;
+    if (camBytes != null) {
       slides.add(ImageSlide(
-        title: 'Plant CAM',
-        fullscreenBytes: plantGradcamBytes,
-        child: Image.memory(plantGradcamBytes, fit: BoxFit.cover),
+        title: 'Grad-CAM',
+        fullscreenBytes: camBytes,
+        child: Image.memory(camBytes, fit: BoxFit.cover),
       ));
     } else if (selectedImageBytes != null) {
       slides.add(ImageSlide(
-        title: 'Plant CAM',
+        title: 'Grad-CAM',
         child: Center(
           child: Text(
-            detecting ? 'Stage 1…' : 'Not available',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-          ),
-        ),
-      ));
-    }
-
-    if (diseaseGradcamBytes != null) {
-      slides.add(ImageSlide(
-        title: 'Disease CAM',
-        fullscreenBytes: diseaseGradcamBytes,
-        child: Image.memory(diseaseGradcamBytes, fit: BoxFit.cover),
-      ));
-    } else if (selectedImageBytes != null) {
-      slides.add(ImageSlide(
-        title: 'Disease CAM',
-        child: Center(
-          child: Text(
-            detecting ? 'Stage 2…' : 'Not available',
+            detecting ? 'Generating heatmap…' : 'Not available',
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
           ),
@@ -93,7 +79,7 @@ class ImageSlider extends StatefulWidget {
     required Uint8List? imageBytes,
     required Uint8List? plantGradcamBytes,
     required Uint8List? gradcamBytes,
-    double height = 180,
+    double height = 200,
   }) {
     final slides = <ImageSlide>[];
 
@@ -104,18 +90,13 @@ class ImageSlider extends StatefulWidget {
         child: Image.memory(imageBytes, fit: BoxFit.cover),
       ));
     }
-    if (plantGradcamBytes != null) {
+
+    final camBytes = gradcamBytes ?? plantGradcamBytes;
+    if (camBytes != null) {
       slides.add(ImageSlide(
-        title: 'Plant CAM',
-        fullscreenBytes: plantGradcamBytes,
-        child: Image.memory(plantGradcamBytes, fit: BoxFit.cover),
-      ));
-    }
-    if (gradcamBytes != null) {
-      slides.add(ImageSlide(
-        title: 'Disease CAM',
-        fullscreenBytes: gradcamBytes,
-        child: Image.memory(gradcamBytes, fit: BoxFit.cover),
+        title: 'Grad-CAM',
+        fullscreenBytes: camBytes,
+        child: Image.memory(camBytes, fit: BoxFit.cover),
       ));
     }
 
@@ -142,7 +123,6 @@ class _ImageSliderState extends State<ImageSlider> {
   @override
   void didUpdateWidget(ImageSlider oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Reset page index when slide count changes (e.g. new scan).
     if (widget.slides.length != oldWidget.slides.length) {
       _currentPage = 0;
       _controller.dispose();

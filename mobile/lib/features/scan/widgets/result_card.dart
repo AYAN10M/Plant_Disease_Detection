@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../models/detection_model.dart';
 import 'detail_group.dart';
 import 'detail_line.dart';
-import 'performance_card.dart';
+
 import 'score_chart.dart';
 import 'stage_confidence_bar.dart';
 import 'status_banner.dart';
@@ -42,7 +42,7 @@ class ResultCard extends StatelessWidget {
 
             // ── Stage 1 — Plant confidence ───────────────────────────────
             StageConfidenceBar(
-              stageLabel: 'Stage 1: Plant ID (${result.stage1Model})',
+              stageLabel: 'Stage 1: Plant Identification',
               label: result.plantName.isEmpty ? 'Unknown' : result.plantName,
               confidence: result.plantConfidence,
             ),
@@ -51,7 +51,7 @@ class ResultCard extends StatelessWidget {
             // ── Stage 2 — Disease confidence ─────────────────────────────
             if (result.diseaseName != null || response.effectivelyHealthy) ...[
               StageConfidenceBar(
-                stageLabel: 'Stage 2: Disease (${result.stage2Model})',
+                stageLabel: 'Stage 2: Disease Detection',
                 label: response.effectivelyHealthy
                     ? 'Healthy 🌱'
                     : (result.diseaseName ?? 'Unknown'),
@@ -60,11 +60,7 @@ class ResultCard extends StatelessWidget {
               const SizedBox(height: 18),
             ],
 
-            // ── Performance metrics ──────────────────────────────────────
-            if (result.totalLatencyMs > 0) ...[
-              PerformanceCard(result: result),
-              const SizedBox(height: 14),
-            ],
+
 
             // ── All plant scores ─────────────────────────────────────────
             if (result.plantScores.isNotEmpty) ...[
@@ -89,34 +85,7 @@ class ResultCard extends StatelessWidget {
               const SizedBox(height: 18),
             ],
 
-            // ── Disease details (only for actual diseases, not healthy) ──
-            if (!response.effectivelyHealthy &&
-                response.status != 'not_recognized' &&
-                response.status != 'no_model') ...[
-              DetailGroup(
-                title: 'Diagnosis details',
-                children: [
-                  if (result.diseaseCause != null)
-                    DetailLine(label: 'Cause', value: result.diseaseCause!),
-                  if (result.diseaseDescription != null) ...[
-                    const SizedBox(height: 10),
-                    DetailLine(
-                        label: 'Description',
-                        value: result.diseaseDescription!),
-                  ],
-                  if (result.diseaseRemedy != null) ...[
-                    const SizedBox(height: 10),
-                    DetailLine(label: 'Remedy', value: result.diseaseRemedy!),
-                  ],
-                  if (result.diseasePrevention != null) ...[
-                    const SizedBox(height: 10),
-                    DetailLine(
-                        label: 'Prevention', value: result.diseasePrevention!),
-                  ],
-                ],
-              ),
-              const SizedBox(height: 14),
-            ],
+
 
             // ── Treatment advice ──────────────────────────────────────────
             if (result.advice != null && result.advice!.isNotEmpty) ...[
