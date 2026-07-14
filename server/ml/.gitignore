@@ -1,5 +1,0 @@
-# Extracted .keras model files are large — regenerate with setup_models.py
-models/
-
-# Keep the zip archives tracked in git (or use Git LFS)
-!weights/

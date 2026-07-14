@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../models/detection_model.dart';
 import 'detail_group.dart';
 import 'detail_line.dart';
+import 'performance_card.dart';
 import 'score_chart.dart';
 import 'stage_confidence_bar.dart';
 import 'status_banner.dart';
@@ -41,7 +42,7 @@ class ResultCard extends StatelessWidget {
 
             // ── Stage 1 — Plant confidence ───────────────────────────────
             StageConfidenceBar(
-              stageLabel: 'Stage 1: Plant Identification',
+              stageLabel: 'Stage 1: Plant ID (${result.stage1Model})',
               label: result.plantName.isEmpty ? 'Unknown' : result.plantName,
               confidence: result.plantConfidence,
             ),
@@ -50,13 +51,19 @@ class ResultCard extends StatelessWidget {
             // ── Stage 2 — Disease confidence ─────────────────────────────
             if (result.diseaseName != null || response.effectivelyHealthy) ...[
               StageConfidenceBar(
-                stageLabel: 'Stage 2: Disease Detection',
+                stageLabel: 'Stage 2: Disease (${result.stage2Model})',
                 label: response.effectivelyHealthy
                     ? 'Healthy 🌱'
                     : (result.diseaseName ?? 'Unknown'),
                 confidence: result.confidence,
               ),
               const SizedBox(height: 18),
+            ],
+
+            // ── Performance metrics ──────────────────────────────────────
+            if (result.totalLatencyMs > 0) ...[
+              PerformanceCard(result: result),
+              const SizedBox(height: 14),
             ],
 
             // ── All plant scores ─────────────────────────────────────────
@@ -180,6 +187,27 @@ class ResultCard extends StatelessWidget {
                   DetailLine(
                       label: 'Focus',
                       value: 'Make sure lesions are sharply in focus.'),
+                ],
+              ),
+            ],
+
+            // ── No-model info (Strawberry / Corn) ─────────────────────────
+            if (response.status == 'no_model') ...[
+              const SizedBox(height: 14),
+              DetailGroup(
+                title: '🔬 Disease Model',
+                children: [
+                  Text(
+                    response.message ?? 'Disease detection model coming soon.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.7),
+                      height: 1.5,
+                    ),
+                  ),
                 ],
               ),
             ],

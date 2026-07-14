@@ -12,7 +12,7 @@ class AppConstants {
 
   static const String lanIp = String.fromEnvironment(
     'MIDORI_SERVER_IP',
-    defaultValue: '172.25.0.177',
+    defaultValue: '10.0.2.2',  // Android emulator -> host localhost
   );
 
   // Image limits
@@ -28,13 +28,23 @@ class AppConstants {
   static const int maxHistoryEntries = 50;
   static const String historyPrefsKey = 'detection_history';
 
-  // Supported plants (only those with trained disease models)
+  // Supported plants (those with trained disease models)
   static const List<String> plantOverrideOptions = [
     'Apple',
     'Grape',
     'Potato',
     'Pepper',
   ];
+
+  // Plants identified by Stage 1 but without disease models yet
+  static const List<String> identifiedOnlyPlants = [
+    'Corn',
+    'Strawberry',
+  ];
+
+  // Model architecture
+  static const String stage1ModelName = 'EfficientNetV2-S';
+  static const String stage2ModelName = 'MobileNetV2';
 
   // Confidence thresholds
   static const double highConfidence = 0.80;

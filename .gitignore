@@ -38,6 +38,10 @@ server/test_output.txt
 # ── Machine Learning ──────────────────────────────────────────────────────────
 # Extracted model files (large — regenerate with  python scripts/setup_models.py)
 server/ml/models/
+# Model training outputs (large binary weights)
+14-07-26/
+*.keras
+*.tflite
 # Uncomment the line below to also ignore model zips (if using cloud storage):
 # server/ml/weights/
 
@@ -61,4 +65,4 @@ Thumbs.db
 *.iml
 
 # ── Jupyter ───────────────────────────────────────────────────────────────────
-docs/notebooks/.ipynb_checkpoints/
+.ipynb_checkpoints/

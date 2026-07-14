@@ -1,0 +1,18 @@
+{
+  "model_name": "ResNet50",
+  "accuracy": 1.0,
+  "precision_macro": 1.0,
+  "recall_macro": 1.0,
+  "f1_macro": 1.0,
+  "precision_weighted": 1.0,
+  "recall_weighted": 1.0,
+  "f1_weighted": 1.0,
+  "inference_time_single_image_ms": 71.66488199989544,
+  "inference_time_batch_ms_per_image": 6.075401154080321,
+  "model_size_mb": 241.9252471923828,
+  "total_params": 24778119,
+  "trainable_params": 19255559,
+  "non_trainable_params": 5522560,
+  "final_train_accuracy": 0.9954883456230164,
+  "final_val_accuracy": 0.999797523021698
+}

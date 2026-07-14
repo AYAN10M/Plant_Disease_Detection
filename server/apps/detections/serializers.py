@@ -1,92 +1,44 @@
 from rest_framework import serializers
-
 from .models import Detection
 from diseases.serializers import DiseaseDetailSerializer
 
-# ── Constants ─────────────────────────────────────────────────────────────────
-_MAX_IMAGE_BYTES = 10 * 1024 * 1024   # 10 MB
+_MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
 _ALLOWED_CONTENT_TYPES = {
-    "image/jpeg", "image/jpg",
-    "image/png",
-    "image/webp",
-    "image/heic", "image/heif",
+    "image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif",
 }
 
-# Only plants with a trained disease model are valid overrides.
-PLANT_OVERRIDE_CHOICES = ["", "Apple", "Grape", "Potato", "Pepper"]
+PLANT_OVERRIDE_CHOICES = ["", "Apple", "Corn", "Grape", "Pepper", "Potato", "Strawberry"]
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Input serializer
-# ─────────────────────────────────────────────────────────────────────────────
 
 class DetectionCreateSerializer(serializers.Serializer):
-    """
-    Validates what Flutter POSTs to /api/detections/.
-    Fields
-    ------
-    uploaded_image  : the leaf photo (required)
-    plant_override  : force a specific plant name, skipping Stage 1 (optional)
-    """
-
     uploaded_image = serializers.ImageField()
     plant_override = serializers.ChoiceField(
-        choices=PLANT_OVERRIDE_CHOICES,
-        required=False,
-        allow_blank=True,
-        default="",
+        choices=PLANT_OVERRIDE_CHOICES, required=False, allow_blank=True, default="",
     )
     confidence_threshold = serializers.FloatField(
-        required=False,
-        default=40.0,
-        min_value=0.0,
-        max_value=100.0,
-        help_text="Stage-1 minimum confidence % (0-100). Default: 40.",
+        required=False, default=55.0, min_value=0.0, max_value=100.0,
     )
 
     def validate_uploaded_image(self, value):
         if value.size > _MAX_IMAGE_BYTES:
             raise serializers.ValidationError(
-                f"Image is too large ({value.size // (1024 * 1024)} MB). "
-                "Maximum allowed size is 10 MB."
+                f"Image too large ({value.size // (1024 * 1024)} MB). Max is 10 MB."
             )
         content_type = getattr(value, "content_type", None)
         if content_type and content_type.lower() not in _ALLOWED_CONTENT_TYPES:
             raise serializers.ValidationError(
-                f"Unsupported format: {content_type}. "
-                "Please upload a JPEG, PNG, WebP, or HEIC image."
+                f"Unsupported format: {content_type}. Use JPEG, PNG, WebP, or HEIC."
             )
         return value
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Output serializer
-# ─────────────────────────────────────────────────────────────────────────────
-
 class DetectionResultSerializer(serializers.ModelSerializer):
-    """
-    Serialises a Detection instance into the full JSON response.
-
-    Key computed fields
-    -------------------
-    plant_name           : resolved from plant FK or disease.plant FK
-    plant_confidence_pct : formatted Stage-1 confidence  e.g. "87.3%"
-    confidence_pct       : formatted Stage-2 confidence  e.g. "91.2%"
-    is_healthy           : True when status == 'healthy'
-    uploaded_image       : absolute URL
-    gradcam_image        : absolute URL  (Stage-2 / disease Grad-CAM)
-    plant_gradcam_image  : absolute URL  (Stage-1 / plant Grad-CAM)
-    disease_detail       : nested DiseaseDetailSerializer
-    """
-
     disease_detail      = DiseaseDetailSerializer(source="disease", read_only=True)
-
     plant_name          = serializers.SerializerMethodField()
     plant_confidence_pct = serializers.SerializerMethodField()
     confidence_pct      = serializers.SerializerMethodField()
     is_healthy          = serializers.SerializerMethodField()
-
     uploaded_image      = serializers.SerializerMethodField()
     gradcam_image       = serializers.SerializerMethodField()
     plant_gradcam_image = serializers.SerializerMethodField()
@@ -95,33 +47,24 @@ class DetectionResultSerializer(serializers.ModelSerializer):
         model  = Detection
         fields = [
             "id",
-            # Stage-1
-            "plant_name",
-            "plant_confidence",
-            "plant_confidence_pct",
-            "plant_scores",
-            "plant_gradcam_image",
-            # Stage-2
-            "disease_detail",
-            "confidence",
-            "confidence_pct",
-            "disease_scores",
-            "gradcam_image",
-            # Shared
-            "uploaded_image",
-            "advice",
-            "status",
-            "is_healthy",
-            "created_at",
+            "plant_name", "plant_confidence", "plant_confidence_pct",
+            "plant_scores", "plant_gradcam_image",
+            "disease_detail", "confidence", "confidence_pct",
+            "disease_scores", "gradcam_image",
+            "uploaded_image", "advice", "status", "is_healthy", "created_at",
+            "stage1_latency_ms", "stage2_latency_ms",
+            "preprocessing_latency_ms", "total_latency_ms",
+            "stage1_model", "stage2_model",
         ]
-
-    # ── Computed fields ───────────────────────────────────────────────────────
 
     def get_plant_name(self, obj: Detection) -> str | None:
         if obj.plant:
             return obj.plant.name
         if obj.disease and obj.disease.plant:
             return obj.disease.plant.name
+        # Fall back to the ML engine's raw prediction
+        if obj.predicted_plant_name:
+            return obj.predicted_plant_name
         return None
 
     def get_plant_confidence_pct(self, obj: Detection) -> str:
@@ -131,14 +74,11 @@ class DetectionResultSerializer(serializers.ModelSerializer):
         return f"{round(obj.confidence * 100.0, 1)}%"
 
     def get_is_healthy(self, obj: Detection) -> bool:
-        """True when status is 'healthy' OR the top disease class was 'Healthy'."""
         if obj.status == "healthy":
             return True
         if obj.disease and obj.disease.name.lower() == "healthy":
             return True
         return False
-
-    # ── URL helpers ───────────────────────────────────────────────────────────
 
     def _absolute_url(self, field_value) -> str | None:
         if not field_value:

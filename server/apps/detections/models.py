@@ -16,53 +16,36 @@ class Detection(models.Model):
         ('failed',         'Failed'),
     ]
 
-    plant   = models.ForeignKey(
-        Plant,
-        on_delete=models.SET_NULL,
-        null=True, blank=True,
-        related_name='detections',
+    plant = models.ForeignKey(
+        Plant, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='detections',
     )
     disease = models.ForeignKey(
-        Disease,
-        on_delete=models.SET_NULL,
-        null=True, blank=True,
-        related_name='detections',
+        Disease, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='detections',
     )
 
-    # ── Uploaded image ──────────────────────────────────────────────────────
-    uploaded_image = models.ImageField(upload_to='detections/uploads/')
+    predicted_plant_name = models.CharField(max_length=100, blank=True, default='')
 
-    # ── Stage-1 Grad-CAM  (plant identification heat-map) ──────────────────
-    plant_gradcam_image = models.ImageField(
-        upload_to='detections/gradcam_plant/',
-        null=True, blank=True,
-    )
+    uploaded_image      = models.ImageField(upload_to='detections/uploads/')
+    plant_gradcam_image = models.ImageField(upload_to='detections/gradcam_plant/', null=True, blank=True)
+    gradcam_image       = models.ImageField(upload_to='detections/gradcam_disease/', null=True, blank=True)
 
-    # ── Stage-2 Grad-CAM  (disease heat-map) ───────────────────────────────
-    gradcam_image = models.ImageField(
-        upload_to='detections/gradcam_disease/',
-        null=True, blank=True,
-    )
-
-    # ── Stage-1 scores ──────────────────────────────────────────────────────
-    plant_confidence = models.FloatField(default=0.0)           # 0–1
+    plant_confidence = models.FloatField(default=0.0)
     plant_scores     = models.JSONField(default=list, blank=True)
-    # e.g. [{"name": "Apple", "confidence": 0.873}, ...]
+    confidence       = models.FloatField(default=0.0)
+    disease_scores   = models.JSONField(default=list, blank=True)
+    advice           = models.TextField(blank=True)
 
-    # ── Stage-2 scores ──────────────────────────────────────────────────────
-    confidence     = models.FloatField(default=0.0)             # 0–1 (disease)
-    disease_scores = models.JSONField(default=list, blank=True)
-    # e.g. [{"name": "Apple Scab", "confidence": 0.912}, ...]
+    stage1_latency_ms        = models.FloatField(default=0.0)
+    stage2_latency_ms        = models.FloatField(default=0.0)
+    preprocessing_latency_ms = models.FloatField(default=0.0)
+    total_latency_ms         = models.FloatField(default=0.0)
 
-    # ── Treatment advice ────────────────────────────────────────────────────
-    advice = models.TextField(blank=True)
+    stage1_model = models.CharField(max_length=30, default="EfficientNet")
+    stage2_model = models.CharField(max_length=30, default="MobileNetV2")
 
-    # ── Status & timestamps ─────────────────────────────────────────────────
-    status     = models.CharField(
-        max_length=20,
-        choices=STATUS_CHOICES,
-        default='processing',
-    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='processing')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

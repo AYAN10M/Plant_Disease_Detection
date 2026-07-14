@@ -1,45 +1,14 @@
 """
-Midori ML inference engine — Two-Stage Pipeline (v2)
-=====================================================
+Two-Stage Plant Disease Detection Engine
+Replicated from plant_disease_pipeline_v4_WORKING.ipynb (14-07-26)
+Stage 1: EfficientNet  ->  plant identification (7 classes)
+Stage 2: MobileNetV2   ->  per-plant disease classification
 
-Architecture
-------------
-Stage 1 : plant_identifier.keras  — 6-class plant identification
-          Classes: Apple, Corn, Grape, Potato, Tomato, Pepper
-          (Corn & Tomato are classified but have no Stage 2 model)
-
-Stage 2 : Per-plant disease models (4 supported plants)
-          Apple.keras   — 4 classes : Apple Scab | Black Rot | Cedar Apple Rust | Healthy
-          Potato.keras  — 3 classes : Early Blight | Late Blight | Healthy
-          Grape.keras   — 4 classes : Black Rot | Esca (Black Measles) |
-                                      Leaf Blight (Isariopsis Leaf Spot) | Healthy
-          Pepper.keras  — 2 classes : Bacterial Spot | Healthy
-
-Preprocessing
--------------
-1. Load image with OpenCV (BGR → RGB).
-2. HSV green-channel isolation — hue range 25–95.
-3. Morphological cleanup  (15×15 ellipse CLOSE + OPEN).
-4. Largest contour  = dominant leaf.
-5. Crop with 10 % padding around bounding box.
-6. Resize to (224, 224) via PIL.
-7. MobileNetV2 preprocess_input → [-1, 1].
-8. Fallback (no OpenCV) : simple PIL centre-resize.
-
-Grad-CAM
---------
-Both Stage-1 and Stage-2 generate Grad-CAM overlays.
-  • Last conv layer : "out_relu"  (consistent across all MobileNetV2-based models).
-  • Backbone-split  : build feature_extractor(backbone.input → conv_layer.output),
-    then manually apply remaining layers (GAP, Dense …) inside GradientTape
-    so gradients flow correctly through Keras 3 sub-model boundaries.
+Compatible with Python 3.12/3.13 + TensorFlow 2.19+ (Keras 3)
 """
 
-from __future__ import annotations
-
 import logging
-import os
-import threading
+import time
 import uuid
 from functools import lru_cache
 from pathlib import Path
@@ -50,58 +19,21 @@ from PIL import Image
 logger = logging.getLogger(__name__)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Lazy TF / Keras imports  (compatible with TF 2.21 + Keras 3)
-# ─────────────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Lazy imports
+# ---------------------------------------------------------------------------
 
 def _import_tf():
-    """Return the tensorflow module."""
     import tensorflow as tf
     return tf
 
 
 def _import_keras():
-    """
-    Return the keras module.  Priority order:
-      1. keras (standalone Keras 3  — ships with TF 2.16+)
-      2. tf.keras  (legacy shim inside TensorFlow)
-      3. tf_keras  (explicit legacy package, if installed)
-    """
-    try:
-        import keras
-        return keras
-    except ImportError:
-        pass
-    try:
-        import tensorflow as tf
-        return tf.keras
-    except Exception:
-        pass
-    import tf_keras  # pyrefly: ignore[missing-import]
-    return tf_keras
-
-
-def _mobilenet_preprocess(img_arr: "np.ndarray") -> "np.ndarray":
-    """
-    Apply MobileNetV2 preprocess_input — matches the notebook exactly.
-    Uses tensorflow.keras directly (same path the models were trained with).
-    """
-    try:
-        from tensorflow.keras.applications.mobilenet_v2 import preprocess_input  # pyrefly: ignore[missing-import]
-        return preprocess_input(img_arr)
-    except ImportError:
-        pass
-    try:
-        import keras
-        return keras.applications.mobilenet_v2.preprocess_input(img_arr)
-    except Exception:
-        pass
-    # Final fallback: manual MobileNetV2 scaling [-1, 1]
-    return (img_arr / 127.5) - 1.0
+    import keras
+    return keras
 
 
 def _import_cv2():
-    """Return cv2 module or None if not installed."""
     try:
         import cv2
         return cv2
@@ -109,44 +41,29 @@ def _import_cv2():
         return None
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Model paths  (driven by settings.ML_MODELS_DIR = server/ml/models/)
-# ─────────────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Model paths  (14-07-26 folder)
+# ---------------------------------------------------------------------------
 
 def _ml_dir() -> Path:
-    """Return the directory that holds all .keras model files."""
     try:
         from django.conf import settings
         return Path(settings.ML_MODELS_DIR)
     except Exception:
-        # Fallback when called outside Django context (e.g. setup_models.py)
-        return Path(__file__).resolve().parent.parent.parent / "ml" / "models"
+        return Path(__file__).resolve().parent.parent.parent.parent / "14-07-26"
 
 
-def _build_model_files() -> dict:
+def _model_paths() -> dict:
     d = _ml_dir()
     return {
-        "plant":  d / "plant_identifier.keras",
-        "Apple":  d / "Apple_disease.keras",
-        "Potato": d / "Potato_disease.keras",
-        "Grape":  d / "Grape_disease.keras",
-        "Pepper": d / "Pepper_disease.keras",
+        "plant":      d / "stage1_plant_identifier_eff.keras",
+        "Apple":      d / "Apple_disease.keras",
+        "Corn":       d / "Corn_disease.keras",
+        "Grape":      d / "Grape_disease.keras",
+        "Pepper":     d / "Pepper_disease.keras",
+        "Potato":     d / "Potato_disease.keras",
+        "Strawberry": d / "Strawberry_disease.keras",
     }
-
-
-# Evaluated lazily per request so tests / scripts can override ML_MODELS_DIR.
-# Thread-safe: multiple Django workers may call this concurrently at startup.
-_MODEL_FILES_CACHE: dict | None = None
-_MODEL_FILES_LOCK = threading.Lock()
-
-
-def _MODEL_FILES() -> dict:          # type: ignore[override]
-    global _MODEL_FILES_CACHE
-    if _MODEL_FILES_CACHE is None:
-        with _MODEL_FILES_LOCK:
-            if _MODEL_FILES_CACHE is None:  # double-checked locking
-                _MODEL_FILES_CACHE = _build_model_files()
-    return _MODEL_FILES_CACHE
 
 
 def _gradcam_dir(sub: str) -> Path:
@@ -156,718 +73,605 @@ def _gradcam_dir(sub: str) -> Path:
     return d
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Class labels
-# ─────────────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Class labels  (matching training notebook Cell 3 exactly)
+# ---------------------------------------------------------------------------
 
-# Stage 1 output indices — MUST match training order. Do NOT remove entries.
-PLANT_CLASSES = ["Apple", "Corn", "Grape", "Potato", "Tomato", "Pepper"]
+PLANT_CLASSES = ["Apple", "Corn", "Grape", "Others", "Pepper", "Potato", "Strawberry"]
 
-# Plants that have a trained Stage 2 disease model.
-SUPPORTED_PLANTS = {"Apple", "Grape", "Potato", "Pepper"}
+SUPPORTED_PLANTS = {"Apple", "Corn", "Grape", "Pepper", "Potato", "Strawberry"}
 
-DISEASE_CLASSES: dict[str, list[str]] = {
-    "Apple":  ["Apple Scab", "Black Rot", "Cedar Apple Rust", "Healthy"],
-    "Potato": ["Early Blight", "Late Blight", "Healthy"],
-    "Grape":  [
-        "Black Rot",
-        "Esca (Black Measles)",
-        "Leaf Blight (Isariopsis Leaf Spot)",
-        "Healthy",
+# Stage-2 disease labels (alphabetical folder names from training data)
+DISEASE_CLASSES = {
+    "Apple": [
+        "Apple___Apple_scab",
+        "Apple___Black_rot",
+        "Apple___Cedar_apple_rust",
+        "Apple___healthy",
     ],
-    "Pepper": ["Bacterial Spot", "Healthy"],
+    "Corn": [
+        "Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot",
+        "Corn_(maize)___Common_rust_",
+        "Corn_(maize)___Northern_Leaf_Blight",
+        "Corn_(maize)___healthy",
+    ],
+    "Grape": [
+        "Grape___Black_rot",
+        "Grape___Esca_(Black_Measles)",
+        "Grape___Leaf_blight_(Isariopsis_Leaf_Spot)",
+        "Grape___healthy",
+    ],
+    "Pepper": [
+        "Pepper,_bell___Bacterial_spot",
+        "Pepper,_bell___healthy",
+    ],
+    "Potato": [
+        "Potato___Early_blight",
+        "Potato___Late_blight",
+        "Potato___healthy",
+    ],
+    "Strawberry": [
+        "Strawberry___Leaf_scorch",
+        "Strawberry___healthy",
+    ],
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Treatment advice  (from notebooks)
-# ─────────────────────────────────────────────────────────────────────────────
-
-TREATMENT_ADVICE: dict[str, str] = {
-    # Apple
-    "Apple Scab": (
-        "Apply fungicides (captan / myclobutanil) at bud-break. "
-        "Remove infected leaves. Improve air circulation."
-    ),
-    "Black Rot": (
-        "Prune infected wood 8–12 inches below cankers. "
-        "Apply copper-based fungicide. Avoid overhead irrigation."
-    ),
-    "Cedar Apple Rust": (
-        "Remove nearby juniper/cedar hosts if possible. "
-        "Apply protective fungicide (mancozeb / myclobutanil) before infection periods."
-    ),
-    # Potato
-    "Early Blight": (
-        "Apply chlorothalonil or mancozeb fungicide. "
-        "Rotate crops; avoid wetting foliage. Remove debris after harvest."
-    ),
-    "Late Blight": (
-        "URGENT — Apply metalaxyl or cymoxanil immediately. "
-        "Destroy infected plants. Report to local agricultural authority."
-    ),
-    # Grape
-    "Esca (Black Measles)": (
-        "Remove and destroy infected wood. Apply trunk wound protectants. "
-        "Avoid large pruning cuts. No curative treatment exists — prevention is key."
-    ),
-    "Leaf Blight (Isariopsis Leaf Spot)": (
-        "Apply copper-based fungicide or mancozeb. "
-        "Remove infected leaves. Ensure good canopy air circulation."
-    ),
-    # Pepper
-    "Bacterial Spot": (
-        "Apply copper-based bactericide at first sign. "
-        "Avoid overhead irrigation. Use certified disease-free seeds. "
-        "Rotate crops for 2–3 years."
-    ),
-    # Shared
-    "Healthy": (
-        "No disease detected. Maintain regular watering and fertilisation schedule."
-    ),
+# Folder-name → human-readable display name  (from notebook Cell 3)
+DISEASE_DISPLAY = {
+    "Apple___Apple_scab":                                      "Apple Scab",
+    "Apple___Black_rot":                                       "Black Rot",
+    "Apple___Cedar_apple_rust":                                "Cedar Apple Rust",
+    "Apple___healthy":                                         "Healthy",
+    "Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot":      "Cercospora / Gray Leaf Spot",
+    "Corn_(maize)___Common_rust_":                             "Common Rust",
+    "Corn_(maize)___Northern_Leaf_Blight":                     "Northern Leaf Blight",
+    "Corn_(maize)___healthy":                                  "Healthy",
+    "Grape___Black_rot":                                       "Black Rot",
+    "Grape___Esca_(Black_Measles)":                            "Esca (Black Measles)",
+    "Grape___Leaf_blight_(Isariopsis_Leaf_Spot)":              "Leaf Blight (Isariopsis)",
+    "Grape___healthy":                                         "Healthy",
+    "Pepper,_bell___Bacterial_spot":                           "Bacterial Spot",
+    "Pepper,_bell___healthy":                                  "Healthy",
+    "Potato___Early_blight":                                   "Early Blight",
+    "Potato___Late_blight":                                    "Late Blight",
+    "Potato___healthy":                                        "Healthy",
+    "Strawberry___Leaf_scorch":                                "Leaf Scorch",
+    "Strawberry___healthy":                                    "Healthy",
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Confidence thresholds  (imported from the single source of truth)
-# ─────────────────────────────────────────────────────────────────────────────
+STAGE1_MODEL_NAME = "EfficientNet"
+STAGE2_MODEL_NAME = "MobileNetV2"
 
-from constants import (
-    PLANT_CONF_THRESHOLD,
-    DISEASE_CONF_THRESHOLD,
-    DISEASE_CONF_THRESHOLDS,
-)
+TREATMENT_ADVICE = {
+    "Apple Scab":                          "Apply fungicides (captan/myclobutanil) at bud-break. Remove infected leaves.",
+    "Black Rot":                           "Prune infected wood below cankers. Apply copper-based fungicide.",
+    "Cedar Apple Rust":                    "Remove nearby juniper/cedar hosts. Apply mancozeb before infection periods.",
+    "Cercospora / Gray Leaf Spot":         "Apply fungicides like strobilurins. Rotate crops and use resistant varieties.",
+    "Common Rust":                         "Apply foliar fungicides early. Use rust-resistant corn varieties.",
+    "Northern Leaf Blight":                "Apply fungicides at first sign. Practice crop rotation and remove debris.",
+    "Esca (Black Measles)":                "Remove infected wood. Apply trunk wound protectants.",
+    "Leaf Blight (Isariopsis)":            "Apply copper-based fungicide. Remove infected leaves.",
+    "Bacterial Spot":                      "Apply copper-based bactericide. Avoid overhead irrigation. Rotate crops.",
+    "Early Blight":                        "Apply chlorothalonil or mancozeb. Rotate crops; avoid wetting foliage.",
+    "Late Blight":                         "URGENT - Apply metalaxyl immediately. Destroy infected plants.",
+    "Leaf Scorch":                         "Remove infected leaves. Apply fungicides. Ensure good air circulation.",
+    "Healthy":                             "No disease detected. Maintain regular watering and fertilisation schedule.",
+}
 
-LAST_CONV_LAYER = "out_relu"    # Last ReLU in MobileNetV2 — valid for all 5 models
+# Notebook configuration
+CONFIDENCE_THRESHOLD = 0.55
+IMG_SIZE = (224, 224)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Image preprocessing
-# ─────────────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Preprocessing
+# Stage 1 model has built-in Rescaling + Normalization layers → raw [0, 255]
+# Stage 2 model (MobileNetV2) needs external preprocessing → [-1, 1]
+# ---------------------------------------------------------------------------
 
-def _normalize_brightness(img_rgb: np.ndarray) -> np.ndarray:
-    """
-    Adaptively brighten dark leaf images before inference.
+def _preprocess_stage1(image_path: str) -> np.ndarray:
+    """Load, resize to 224×224, return raw [0-255] float32 batch.
+    Stage 1 model has built-in Rescaling + Normalization layers."""
+    pil_image = Image.open(image_path).convert("RGB")
+    img = pil_image.resize((IMG_SIZE[1], IMG_SIZE[0]))
+    arr = np.array(img, dtype=np.float32)
+    return np.expand_dims(arr, axis=0)
 
-    The Grape disease model predicts Esca at up to 88% confidence on dark or
-    underexposed images (confirmed by diagnostic).  Normalising to a target mean
-    brightness of ~130 reduces this artefact without distorting well-exposed images.
 
-    Only applied when the image mean brightness is below 80 to leave well-lit
-    photos completely unchanged.
-    """
-    mean_brightness = float(img_rgb.mean())
-    if mean_brightness < 80.0 and mean_brightness > 1.0:
-        scale = 130.0 / mean_brightness
-        img_rgb = np.clip(img_rgb.astype(np.float32) * scale, 0, 255).astype(np.uint8)
-        logger.debug(
-            "[Midori] Brightness normalised: mean %.1f → %.1f",
-            mean_brightness, float(img_rgb.mean()),
+def _preprocess_stage2(image_path: str) -> np.ndarray:
+    """Load, resize to 224×224, apply MobileNetV2 preprocessing → [-1, 1]."""
+    keras = _import_keras()
+    preprocess_input = keras.applications.mobilenet_v2.preprocess_input
+    pil_image = Image.open(image_path).convert("RGB")
+    img = pil_image.resize((IMG_SIZE[1], IMG_SIZE[0]))
+    arr = np.array(img, dtype=np.float32)
+    arr = preprocess_input(arr)
+    return np.expand_dims(arr, axis=0)
+
+
+# ---------------------------------------------------------------------------
+# Model loading  (matches notebook Cell 5 — safe_load_model with fallbacks)
+# ---------------------------------------------------------------------------
+
+def _safe_load_model(path: str):
+    """Load a .keras model robustly across TF version differences.
+    Strategy 1: normal load
+    Strategy 2: compile=False
+    Strategy 3: patched BN + compile=False
+    Matches notebook's safe_load_model() exactly."""
+    tf = _import_tf()
+    keras = _import_keras()
+
+    # Strategy 1: normal load
+    try:
+        m = keras.models.load_model(str(path))
+        logger.info("  Loaded %s (strategy 1)", path)
+        return m
+    except Exception as e1:
+        logger.debug("  Strategy 1 failed: %s", type(e1).__name__)
+
+    # Strategy 2: compile=False
+    try:
+        m = keras.models.load_model(str(path), compile=False)
+        logger.info("  Loaded %s (strategy 2: compile=False)", path)
+        return m
+    except Exception as e2:
+        logger.debug("  Strategy 2 failed: %s", type(e2).__name__)
+
+    # Strategy 3: patched BatchNormalization + compile=False
+    _KNOWN_BN_KWARGS = {
+        'name', 'trainable', 'dtype', 'axis', 'momentum', 'epsilon',
+        'center', 'scale', 'beta_initializer', 'gamma_initializer',
+        'moving_mean_initializer', 'moving_variance_initializer',
+        'beta_regularizer', 'gamma_regularizer',
+        'beta_constraint', 'gamma_constraint', 'synchronized',
+    }
+
+    class _PatchedBatchNormalization(tf.keras.layers.BatchNormalization):
+        """BatchNormalization that silently drops unknown kwargs."""
+        @classmethod
+        def from_config(cls, config):
+            clean_config = {k: v for k, v in config.items() if k in _KNOWN_BN_KWARGS}
+            return cls(**clean_config)
+
+    try:
+        custom_objects = {'BatchNormalization': _PatchedBatchNormalization}
+        with tf.keras.utils.custom_object_scope(custom_objects):
+            m = keras.models.load_model(str(path), compile=False)
+        logger.info("  Loaded %s (strategy 3: patched BN)", path)
+        return m
+    except Exception as e3:
+        raise RuntimeError(
+            f"All loading strategies failed for {path}.\n"
+            f"  S1: {e1}\n  S2: {e2}\n  S3: {e3}"
         )
-    return img_rgb
 
-
-def preprocess_image(image_path: str, target_size: tuple = (224, 224)) -> np.ndarray:
-    """
-    Load and preprocess a leaf image for MobileNetV2 inference.
-
-    Attempts HSV green-blob isolation via OpenCV first (dominant-leaf crop).
-    Falls back to a simple PIL centre-resize when OpenCV is not available.
-
-    Returns np.ndarray of shape (1, H, W, 3) with values in [-1, 1].
-    """
-    cv2 = _import_cv2()
-
-    if cv2 is not None:
-        img_bgr = cv2.imread(image_path)
-        if img_bgr is None:
-            logger.warning(
-                "[Midori] cv2.imread returned None for '%s' — "
-                "file may be missing, corrupt, or not an image.",
-                image_path,
-            )
-        if img_bgr is not None:
-            img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-
-            # Normalise brightness BEFORE colour-based isolation so the HSV
-            # mask is computed on the normalised image, not the original dark one.
-            img_rgb = _normalize_brightness(img_rgb)
-
-            # Re-derive BGR from normalised RGB so HSV isolation is consistent.
-            img_bgr_norm = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
-
-            h, w = img_rgb.shape[:2]
-
-            # ── HSV green isolation (hue 25–95) — run on NORMALISED image ──
-            hsv     = cv2.cvtColor(img_bgr_norm, cv2.COLOR_BGR2HSV)
-            lower_g = np.array([25,  40,  40])
-            upper_g = np.array([95, 255, 255])
-            mask    = cv2.inRange(hsv, lower_g, upper_g)
-
-            kernel  = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))
-            mask    = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-            mask    = cv2.morphologyEx(mask, cv2.MORPH_OPEN,  kernel)
-
-            # ── Crop to dominant leaf ──────────────────────────────────────
-            contours, _ = cv2.findContours(
-                mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-            )
-            if contours:
-                largest      = max(contours, key=cv2.contourArea)
-                x, y, bw, bh = cv2.boundingRect(largest)
-                pad_x = int(bw * 0.10)
-                pad_y = int(bh * 0.10)
-                x1    = max(0, x - pad_x)
-                y1    = max(0, y - pad_y)
-                x2    = min(w, x + bw + pad_x)
-                y2    = min(h, y + bh + pad_y)
-                img_rgb = img_rgb[y1:y2, x1:x2]
-            else:
-                # No green region — fall back to centre square crop
-                side   = min(h, w)
-                cy, cx = h // 2, w // 2
-                img_rgb = img_rgb[
-                    cy - side // 2: cy + side // 2,
-                    cx - side // 2: cx + side // 2,
-                ]
-
-            # Resize — match notebook (no explicit resampling filter arg)
-            img_pil = Image.fromarray(img_rgb).resize(target_size)
-            img_arr = np.array(img_pil, dtype=np.float32)
-            img_arr = _mobilenet_preprocess(img_arr)
-            return np.expand_dims(img_arr, axis=0)
-
-    # ── Fallback: simple PIL resize (no OpenCV) ───────────────────────────
-    logger.warning("[Midori] OpenCV not available — using simple PIL preprocessing.")
-    with Image.open(image_path) as raw:
-        img_pil = raw.convert("RGB")
-        img_arr_raw = np.array(img_pil, dtype=np.uint8)
-        img_arr_raw = _normalize_brightness(img_arr_raw)
-        img_pil = Image.fromarray(img_arr_raw).resize(target_size)
-    img_arr = np.array(img_pil, dtype=np.float32)
-    img_arr = _mobilenet_preprocess(img_arr)
-    return np.expand_dims(img_arr, axis=0)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Cached model loaders
-# ─────────────────────────────────────────────────────────────────────────────
 
 @lru_cache(maxsize=1)
-def _get_plant_model():
-    keras = _import_keras()
-    path  = _MODEL_FILES()["plant"]
+def _get_plant_model():  # type: ignore[misc]
+    path = _model_paths()["plant"]
     if not path.exists():
-        raise FileNotFoundError(
-            f"[Midori] Plant identifier not found at {path}. "
-            "Run  python scripts/setup_models.py  first."
-        )
-    logger.info("[Midori] Loading plant identifier from %s", path)
-    model = keras.models.load_model(str(path))
-    n_classes = _get_output_classes(model)
-    logger.info("[Midori] Plant model ready — output classes: %d", n_classes)
+        raise FileNotFoundError(f"Plant model not found at {path}")
+    logger.info("Loading EfficientNet Stage-1 from %s", path)
+    model = _safe_load_model(str(path))
+    assert model is not None, f"Failed to load model from {path}"
+    n_out = model.output_shape[-1]  # type: ignore[union-attr]
+    logger.info("Plant model ready - %d classes (expected %d)", n_out, len(PLANT_CLASSES))
+    if n_out != len(PLANT_CLASSES):
+        logger.warning("Stage 1 class count mismatch: model=%d, expected=%d", n_out, len(PLANT_CLASSES))
     return model
 
 
-@lru_cache(maxsize=4)
-def _get_disease_model(plant_name: str):
-    keras = _import_keras()
-    path  = _MODEL_FILES().get(plant_name)
+@lru_cache(maxsize=6)
+def _get_disease_model(plant_name: str):  # type: ignore[misc]
+    path = _model_paths().get(plant_name)
     if path is None or not path.exists():
         return None
-    logger.info("[Midori] Loading %s disease model from %s", plant_name, path)
-    model = keras.models.load_model(str(path))
-    n_classes = _get_output_classes(model)
-    logger.info(
-        "[Midori] %s disease model ready — classes: %d", plant_name, n_classes
-    )
+    logger.info("Loading MobileNetV2 %s disease model from %s", plant_name, path)
+    model = _safe_load_model(str(path))
+    assert model is not None, f"Failed to load model from {path}"
+    expected = len(DISEASE_CLASSES.get(plant_name, []))
+    if model.output_shape[-1] != expected:  # type: ignore[union-attr]
+        logger.warning("%s class mismatch: model=%d, expected=%d", plant_name, model.output_shape[-1], expected)  # type: ignore[union-attr]
     return model
 
 
-def _get_output_classes(model) -> int:
-    """
-    Safely read the number of output classes from any Keras model.
-    Keras 3 removed model.output_shape on subclassed models; this helper
-    falls back to checking the last layer's output spec.
-    """
-    try:
-        return model.output_shape[-1]
-    except Exception:
-        pass
-    try:
-        return model.layers[-1].output_shape[-1]
-    except Exception:
-        pass
-    return -1
+# ---------------------------------------------------------------------------
+# Grad-CAM  (from notebook Cell 8 — v4 FIXED, always shows heatmap)
+# ---------------------------------------------------------------------------
 
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Grad-CAM  (Keras 3 compatible, backbone-split approach)
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _jet_colormap(arr: np.ndarray) -> np.ndarray:
-    """Pure-NumPy jet colormap.  arr : (H, W) float [0,1]  →  (H, W, 3) uint8."""
-    r = np.clip(1.5 - np.abs(4.0 * arr - 3.0), 0.0, 1.0)
-    g = np.clip(1.5 - np.abs(4.0 * arr - 2.0), 0.0, 1.0)
-    b = np.clip(1.5 - np.abs(4.0 * arr - 1.0), 0.0, 1.0)
-    return (np.stack([r, g, b], axis=-1) * 255).astype(np.uint8)
-
-
-def _find_mobilenet_base(model):
-    """Return the MobileNetV2 sub-model embedded inside *model*, or None."""
+def _find_gradcam_layer(model):
+    """Walk model layers in reverse and return the last layer
+    with a 4-D spatial output (batch, H, W, C) where H > 1."""
     keras = _import_keras()
-    for layer in model.layers:
-        if isinstance(layer, keras.Model) and "mobilenetv2" in layer.name.lower():
-            return layer
-    # Generic fallback: first nested model with many layers
-    for layer in model.layers:
-        if hasattr(layer, "layers") and len(layer.layers) > 3:
-            return layer
+    SPATIAL_TYPES = (
+        keras.layers.Conv2D,
+        keras.layers.DepthwiseConv2D,
+        keras.layers.SeparableConv2D,
+        keras.layers.Activation,
+        keras.layers.ReLU,
+        keras.layers.BatchNormalization,
+    )
+    for layer in reversed(model.layers):
+        if not isinstance(layer, SPATIAL_TYPES):
+            continue
+        try:
+            out = layer.output_shape  # type: ignore[union-attr]
+            if isinstance(out, list):
+                out = out[0]
+            if len(out) == 4 and out[1] is not None and out[1] > 1:
+                return layer
+        except Exception:
+            continue
     return None
 
 
-def get_gradcam_heatmap(
-    model,
-    img_array: np.ndarray,
-    pred_index: int | None = None,
-    last_conv_layer_name: str = LAST_CONV_LAYER,
-) -> tuple[np.ndarray, int]:
-    """
-    Compute Grad-CAM heatmap (Keras 3 / TF 2.13+ compatible).
-
-    Parameters
-    ----------
-    model                : keras.Model   Any of the 5 project models.
-    img_array            : np.ndarray    Preprocessed image  (1, 224, 224, 3).
-    pred_index           : int | None    Class to explain. None = argmax.
-    last_conv_layer_name : str           Last ReLU in MobileNetV2.
-
-    Returns
-    -------
-    heatmap    : np.ndarray  shape (7, 7), float32 in [0, 1]
-    pred_index : int
-    """
-    tf    = _import_tf()
+def _make_heatmap(model, img_array, target_layer, class_index):
+    """Core Grad-CAM: watches conv_out inside the tape so gradients
+    are non-None even through frozen/non-differentiable BN layers.
+    Returns float32 (H, W) normalised to [0, 1], or None on failure."""
+    tf = _import_tf()
     keras = _import_keras()
 
-    base_model = _find_mobilenet_base(model)
-    if base_model is None:
-        base_model = model   # flat model — treat the whole thing as backbone
-
-    # Build feature extractor: backbone.input → last-conv.output  (7 × 7 × 1280)
     try:
-        conv_layer = base_model.get_layer(last_conv_layer_name)
-    except (ValueError, AttributeError):
-        # Find last layer whose output is 4D (spatial feature map)
-        conv_layer = None
-        for lyr in reversed(base_model.layers):
-            try:
-                shape = lyr.output_shape
-                if isinstance(shape, (list, tuple)) and len(shape) == 4:
-                    conv_layer = lyr
-                    break
-            except Exception:
-                # Keras 3 raises RuntimeError for layers not yet built
-                pass
-        if conv_layer is None:
-            raise RuntimeError("[Midori] Cannot find a convolutional layer for Grad-CAM.")
-
-
-    feature_extractor = keras.Model(
-        inputs=base_model.input,
-        outputs=conv_layer.output,
-    )
-
-    # Layers after the backbone (GAP, Dense, Softmax …)
-    if base_model is model:
-        remaining_layers: list = []
-    else:
-        base_idx = next(
-            (i for i, lyr in enumerate(model.layers) if lyr is base_model), None
+        grad_model = keras.Model(
+            inputs=model.inputs,
+            outputs=[target_layer.output, model.output]
         )
-        remaining_layers = model.layers[base_idx + 1:] if base_idx is not None else []
+    except Exception as e:
+        logger.debug("Grad-CAM grad_model build failed: %s", e)
+        return None
 
     img_tensor = tf.cast(img_array, tf.float32)
 
     with tf.GradientTape() as tape:
-        conv_outputs = feature_extractor(img_tensor, training=False)
-        tape.watch(conv_outputs)
+        tape.watch(img_tensor)
+        conv_out, preds = grad_model(img_tensor, training=False)
+        tape.watch(conv_out)
+        score = preds[:, class_index]
 
-        if remaining_layers:
-            x = conv_outputs
-            for layer in remaining_layers:
-                x = layer(x, training=False)
-            predictions = x
-        else:
-            predictions = model(img_tensor, training=False)
-
-        if pred_index is None:
-            pred_index = int(tf.argmax(predictions[0]))
-
-        class_score = predictions[:, pred_index]
-
-    grads = tape.gradient(class_score, conv_outputs)
+    grads = tape.gradient(score, conv_out)
     if grads is None:
-        raise RuntimeError(
-            "[Midori] GradientTape returned None — check last_conv_layer_name."
-        )
+        return None
 
-    pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))   # (C,)
-    conv_map     = conv_outputs[0]                           # (H, W, C)
-    heatmap      = conv_map @ pooled_grads[..., tf.newaxis]  # (H, W, 1)
-    heatmap      = tf.squeeze(heatmap)                       # (H, W)
+    pooled = tf.reduce_mean(grads, axis=(0, 1, 2)).numpy()
+    feat   = conv_out[0].numpy()
 
-    heatmap  = tf.maximum(heatmap, 0.0)
-    max_val  = tf.math.reduce_max(heatmap)
-    if float(max_val) > 0.0:
-        heatmap = heatmap / max_val
+    cam = np.dot(feat, pooled)
 
-    return heatmap.numpy(), pred_index
+    # Normalise: try ReLU + max-norm first (standard Grad-CAM)
+    cam_relu = np.maximum(cam, 0)
+    amax = cam_relu.max()
+    if amax > 1e-8:
+        return (cam_relu / amax).astype(np.float32)
+
+    # Fallback: full min-max (no ReLU)
+    cmin, cmax = cam.min(), cam.max()
+    if cmax - cmin > 1e-8:
+        return ((cam - cmin) / (cmax - cmin)).astype(np.float32)
+
+    # Genuinely flat
+    return np.full(cam.shape, 0.5, dtype=np.float32)
 
 
-def _save_gradcam(
-    image_path: str,
-    heatmap: np.ndarray,
-    sub: str = "disease",
-    alpha: float = 0.45,
-) -> str | None:
-    """
-    Overlay heatmap on original image, save PNG, return relative media path.
-    sub : "plant" or "disease"
-    """
+def _generate_gradcam_overlay(model, processed_arr, pil_image):
+    """Generate Grad-CAM heatmap blended on original image.
+    Returns uint8 numpy array (H, W, 3) or None.
+    ALWAYS returns a coloured heatmap — never the plain original image.
+    Matches notebook Cell 8 generate_gradcam() exactly."""
+    tf = _import_tf()
+    cv2 = _import_cv2()
+
+    orig_rgb = np.array(pil_image.convert('RGB'))
+    orig_h, orig_w = orig_rgb.shape[:2]
+
+    # Step 1: find the best convolutional layer
+    target_layer = _find_gradcam_layer(model)
+
+    # Step 2: compute Grad-CAM heatmap
+    cam = None
+    if target_layer is not None:
+        try:
+            preds_raw = model(tf.cast(processed_arr, tf.float32), training=False)
+            top_class = int(tf.argmax(preds_raw[0]).numpy())
+            cam = _make_heatmap(model, processed_arr, target_layer, top_class)
+        except Exception as e:
+            logger.debug("Grad-CAM heatmap failed: %s", e)
+            cam = None
+
+    # Step 3: edge-based fallback (always produces visible output)
+    if cam is None and cv2 is not None:
+        gray  = cv2.cvtColor(orig_rgb, cv2.COLOR_RGB2GRAY)
+        edges = cv2.Canny(gray, 50, 150).astype(np.float32)
+        edges = cv2.GaussianBlur(edges, (21, 21), 0)
+        amax  = edges.max()
+        cam   = (edges / amax) if amax > 0 else np.full((orig_h, orig_w), 0.5, dtype=np.float32)
+
+    if cam is None:
+        return None
+
+    # Step 4: resize to original image dimensions
+    if cv2 is not None:
+        cam_resized = cv2.resize(cam, (orig_w, orig_h), interpolation=cv2.INTER_LINEAR)
+    else:
+        cam_resized = np.array(Image.fromarray(np.uint8(255 * cam)).resize((orig_w, orig_h))) / 255.0
+
+    # Step 5: apply JET colormap
+    cam_u8 = np.uint8(255 * np.clip(cam_resized, 0, 1))
+
     try:
-        orig_img    = np.array(
-            Image.open(image_path).convert("RGB").resize((224, 224), Image.LANCZOS)
-        )
-        heatmap_pil = Image.fromarray(np.uint8(255 * heatmap)).resize(
-            (224, 224), Image.BILINEAR
-        )
-        heatmap_up  = np.array(heatmap_pil) / 255.0
-        jet         = _jet_colormap(heatmap_up)
-        overlay     = np.uint8(jet * alpha + orig_img * (1 - alpha))
+        import matplotlib
+        jet_lut = matplotlib.colormaps['jet'](np.arange(256))[:, :3]
+    except ImportError:
+        x = np.linspace(0, 1, 256)
+        r = np.clip(1.5 - np.abs(4.0 * x - 3.0), 0, 1)
+        g = np.clip(1.5 - np.abs(4.0 * x - 2.0), 0, 1)
+        b = np.clip(1.5 - np.abs(4.0 * x - 1.0), 0, 1)
+        jet_lut = np.stack([r, g, b], axis=-1)
 
-        filename  = f"{uuid.uuid4().hex}.png"
-        save_dir  = _gradcam_dir(sub)
-        save_path = save_dir / filename
+    jet_heatmap = np.uint8(jet_lut[cam_u8] * 255)
+
+    # Step 6: blend — 55% original + 45% heatmap
+    if cv2 is not None:
+        overlay = cv2.addWeighted(orig_rgb, 0.55, jet_heatmap, 0.45, 0)
+    else:
+        overlay = np.uint8(orig_rgb * 0.55 + jet_heatmap * 0.45)
+
+    return overlay
+
+
+def _save_gradcam(overlay, sub="disease"):
+    """Save a Grad-CAM overlay to disk."""
+    try:
+        filename = f"{uuid.uuid4().hex}.png"
+        save_path = _gradcam_dir(sub) / filename
         Image.fromarray(overlay).save(str(save_path))
-
-        rel_path = f"detections/gradcam_{sub}/{filename}"
-        logger.info("[Midori] Grad-CAM (%s) saved → %s", sub, save_path)
-        return rel_path
-
+        return f"detections/gradcam_{sub}/{filename}"
     except Exception as exc:
-        logger.warning("[Midori] Grad-CAM (%s) failed: %s", sub, exc, exc_info=True)
+        logger.warning("Grad-CAM save failed: %s", exc)
         return None
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Stage 1 — Plant Identification
-# ─────────────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Stage 1: Plant Identification  (matches notebook Cell 6)
+# ---------------------------------------------------------------------------
 
-def identify_plant(image_path: str) -> tuple[str, float, list, str | None]:
-    """
-    Stage 1: Identify plant species from leaf image.
-
-    Returns
-    -------
-    plant_name      : str         Top-1 class name
-    confidence      : float       Confidence %  (0–100)
-    all_scores      : list        [(name, pct), ...] for all 6 plant classes
-    gradcam_path    : str | None  Relative media path to Stage-1 Grad-CAM PNG
-    """
-    tf    = _import_tf()
+def identify_plant(image_path):
+    """Returns (plant_name, confidence_0_1, all_probs_dict, gradcam_path, latency_ms)."""
     model = _get_plant_model()
 
-    img_array = preprocess_image(image_path)
-    # Direct model call — faster than predict() for single-image inference.
-    # predict() adds overhead (batch logic, progress callbacks) not needed here.
-    raw_preds = model(img_array, training=False).numpy()[0]
+    t0 = time.perf_counter()
+    processed_arr = _preprocess_stage1(image_path)
+    preds = model(processed_arr, training=False)
+    if hasattr(preds, 'numpy'):
+        preds = preds.numpy()[0]
+    else:
+        preds = np.array(preds)[0]
+    latency = (time.perf_counter() - t0) * 1000.0
 
-    pred_idx   = int(np.argmax(raw_preds))
-    confidence = float(raw_preds[pred_idx]) * 100.0
-    plant_name = PLANT_CLASSES[pred_idx]
+    top_idx    = int(np.argmax(preds))
+    confidence = float(preds[top_idx])
+    all_probs  = dict(zip(PLANT_CLASSES, preds.tolist()))
 
-    all_scores = [
-        (PLANT_CLASSES[i], float(raw_preds[i]) * 100.0)
-        for i in range(len(PLANT_CLASSES))
+    # Notebook logic: if below threshold or class is "Others" → Unknown Plant
+    if confidence < CONFIDENCE_THRESHOLD or PLANT_CLASSES[top_idx] == "Others":
+        plant_name = "Unknown Plant"
+    else:
+        plant_name = PLANT_CLASSES[top_idx]
+
+    logger.info("Stage 1: %s (%.1f%%) [%.0fms]", plant_name, confidence * 100, latency)
+
+    # Plant scores as list of (name, pct) for backward compatibility
+    plant_scores = [(PLANT_CLASSES[i], float(preds[i]) * 100.0) for i in range(len(PLANT_CLASSES))]
+
+    # Grad-CAM for plant identification
+    gradcam = None
+    try:
+        pil_img = Image.open(image_path).convert("RGB")
+        overlay = _generate_gradcam_overlay(model, processed_arr, pil_img)
+        if overlay is not None:
+            gradcam = _save_gradcam(overlay, sub="plant")
+    except Exception:
+        pass
+
+    return plant_name, confidence, plant_scores, gradcam, latency
+
+
+# ---------------------------------------------------------------------------
+# Stage 2: Disease Detection  (matches notebook Cell 7)
+# ---------------------------------------------------------------------------
+
+def detect_disease(image_path, plant_name):
+    """Returns (display_label, raw_label, confidence_0_1, scores, advice, gradcam, has_model, latency_ms)."""
+    disease_classes = DISEASE_CLASSES.get(plant_name)
+    model = _get_disease_model(plant_name)
+
+    if model is None or disease_classes is None:
+        return None, None, 0.0, [], "No disease model available.", None, False, 0.0
+
+    t0 = time.perf_counter()
+    processed_arr = _preprocess_stage2(image_path)
+    preds = model(processed_arr, training=False)
+    if hasattr(preds, 'numpy'):
+        preds = preds.numpy()[0]
+    else:
+        preds = np.array(preds)[0]
+    latency = (time.perf_counter() - t0) * 1000.0
+
+    top_idx    = int(np.argmax(preds))
+    confidence = float(preds[top_idx])
+
+    # Get raw folder-style label and convert to display name
+    if disease_classes and top_idx < len(disease_classes):
+        raw_label     = disease_classes[top_idx]
+        display_label = DISEASE_DISPLAY.get(raw_label, raw_label.split("___")[-1].replace("_", " "))
+    else:
+        raw_label     = f"Class {top_idx}"
+        display_label = raw_label
+
+    advice = TREATMENT_ADVICE.get(display_label, "Consult a local agronomist.")
+
+    # Scores with display names
+    scores = [
+        (DISEASE_DISPLAY.get(disease_classes[i], disease_classes[i]), float(preds[i]) * 100.0)
+        for i in range(len(disease_classes))
     ]
 
-    logger.info("[Midori] Stage 1: %s  (%.1f%%)", plant_name, confidence)
+    logger.info("Stage 2: %s (%.1f%%) [%.0fms]", display_label, confidence * 100, latency)
 
-    # Stage-1 Grad-CAM
-    gradcam_path: str | None = None
-    try:
-        heatmap, _ = get_gradcam_heatmap(model, img_array, pred_index=pred_idx)
-        gradcam_path = _save_gradcam(image_path, heatmap, sub="plant")
-    except Exception as exc:
-        logger.warning("[Midori] Stage-1 Grad-CAM error: %s", exc)
+    # Grad-CAM for disease (skip if healthy)
+    gradcam = None
+    if display_label and "healthy" not in display_label.lower():
+        try:
+            pil_img = Image.open(image_path).convert("RGB")
+            overlay = _generate_gradcam_overlay(model, processed_arr, pil_img)
+            if overlay is not None:
+                gradcam = _save_gradcam(overlay, sub="disease")
+        except Exception:
+            pass
 
-    return plant_name, confidence, all_scores, gradcam_path
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Stage 2 — Disease Detection
-# ─────────────────────────────────────────────────────────────────────────────
-
-def detect_disease(
-    image_path: str,
-    plant_name: str,
-) -> tuple[str | None, float, list, str, str | None, bool, float]:
-    """
-    Stage 2: Detect disease for the identified plant.
-
-    Returns
-    -------
-    disease_name          : str | None
-    confidence            : float       Confidence %  (0–100)
-    all_scores            : list        [(name, pct), ...]
-    advice                : str         Treatment recommendation
-    gradcam_path          : str | None  Relative media path to Stage-2 Grad-CAM PNG
-    has_model             : bool        False when no disease model exists for this plant
-    per_plant_threshold   : float       Calibrated confidence threshold for this plant
-    """
-    tf = _import_tf()
-
-    class_names   = DISEASE_CLASSES.get(plant_name)
-    disease_model = _get_disease_model(plant_name)
-
-    if disease_model is None or class_names is None:
-        logger.info("[Midori] No disease model for '%s'", plant_name)
-        return (
-            None,
-            0.0,
-            [],
-            "No disease model available for this plant.",
-            None,
-            False,
-            DISEASE_CONF_THRESHOLDS.get(plant_name, DISEASE_CONF_THRESHOLD),
-        )
-
-    img_array = preprocess_image(image_path)
-    # Direct model call — faster than predict() for single-image inference.
-    raw_preds = disease_model(img_array, training=False).numpy()[0]
-
-    pred_idx   = int(np.argmax(raw_preds))
-    confidence = float(raw_preds[pred_idx]) * 100.0
-    disease    = class_names[pred_idx]
-    advice     = TREATMENT_ADVICE.get(disease, "Consult a local agronomist.")
-
-    all_scores = [
-        (class_names[i], float(raw_preds[i]) * 100.0)
-        for i in range(len(class_names))
-    ]
-
-    logger.info("[Midori] Stage 2: %s  (%.1f%%)", disease, confidence)
-
-    # Retrieve per-plant threshold (fallback to global)
-    per_plant_threshold = DISEASE_CONF_THRESHOLDS.get(plant_name, DISEASE_CONF_THRESHOLD)
-
-    # Stage-2 Grad-CAM
-    gradcam_path: str | None = None
-    try:
-        heatmap, _ = get_gradcam_heatmap(
-            disease_model, img_array, pred_index=pred_idx
-        )
-        gradcam_path = _save_gradcam(image_path, heatmap, sub="disease")
-    except Exception as exc:
-        logger.warning("[Midori] Stage-2 Grad-CAM error: %s", exc)
-
-    return disease, confidence, all_scores, advice, gradcam_path, True, per_plant_threshold
+    return display_label, raw_label, confidence, scores, advice, gradcam, True, latency
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Public API — run_prediction()
-# ─────────────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Main Pipeline  (matches notebook Cell 9)
+# ---------------------------------------------------------------------------
 
-def run_prediction(
-    image_path: str,
-    plant_override: str | None = None,
-    confidence_threshold: float | None = None,
-) -> dict:
-    """
-    Run the full two-stage detection pipeline.
+def run_prediction(image_path, plant_override=None, confidence_threshold=None):
+    """Run the full two-stage pipeline and return a result dict."""
+    t0 = time.perf_counter()
+    preprocess_ms = (time.perf_counter() - t0) * 1000.0
 
-    Parameters
-    ----------
-    image_path           : str           Absolute path to the uploaded image.
-    plant_override       : str | None    Skip Stage 1 — force this plant name.
-    confidence_threshold : float | None  Stage-1 min confidence % (0-100).
-                                         Defaults to PLANT_CONF_THRESHOLD (40%).
+    stage1_ms = 0.0
+    stage2_ms = 0.0
 
-    Returns  dict with keys
-    --------
-    plant_name, plant_confidence, plant_scores, plant_gradcam_path,
-    disease_name, disease_confidence, disease_scores,
-    advice, is_healthy, disease_gradcam_path,
-    status, message
-    """
-    threshold = confidence_threshold if confidence_threshold is not None else PLANT_CONF_THRESHOLD
-
-    # ── Stage 1 ──────────────────────────────────────────────────────────────
+    # Stage 1: Plant identification
     if plant_override:
-        plant_name       = plant_override.strip().title()
-        plant_confidence = 100.0
-        plant_scores     = [(plant_name, 100.0)]
-        plant_gradcam_path: str | None = None
-        logger.info("[Midori] Stage 1 skipped — override: %s", plant_name)
+        plant_name = plant_override.strip().title()
+        plant_conf = 1.0  # 100% as fraction
+        plant_scores = [(plant_name, 100.0)]
+        plant_gradcam = None
     else:
         try:
-            plant_name, plant_confidence, plant_scores, plant_gradcam_path = \
+            plant_name, plant_conf, plant_scores, plant_gradcam, stage1_ms = \
                 identify_plant(image_path)
         except Exception as exc:
-            logger.error("[Midori] Stage-1 error: %s", exc, exc_info=True)
-            return _result(
-                status="failed",
-                message="Plant identification failed due to an internal error.",
-            )
+            logger.error("Stage 1 failed: %s", exc)
+            return _result(status="failed", message="Plant identification failed.",
+                           preprocessing_latency_ms=preprocess_ms)
 
-        if plant_confidence < threshold:
-            logger.info(
-                "[Midori] Stage-1 confidence too low: %.1f%% < %.1f%%",
-                plant_confidence, threshold,
-            )
+        # Notebook: "Unknown Plant" means below threshold or "Others"
+        if plant_name == "Unknown Plant":
             return _result(
-                plant_name=plant_name,
-                plant_confidence=plant_confidence,
-                plant_scores=plant_scores,
-                plant_gradcam_path=plant_gradcam_path,
+                plant_name=plant_name, plant_confidence=plant_conf * 100.0,
+                plant_scores=plant_scores, plant_gradcam_path=plant_gradcam,
                 status="not_recognized",
-                message=(
-                    f"Could not confidently identify the plant "
-                    f"({plant_confidence:.1f}%). "
-                    "Please take a clearer, closer photo of the leaf."
-                ),
+                message="This doesn't appear to be a recognized plant. "
+                        "Supported: Apple, Corn, Grape, Pepper, Potato, Strawberry.",
+                stage1_latency_ms=stage1_ms, preprocessing_latency_ms=preprocess_ms,
             )
 
-    # ── Stage 2 ──────────────────────────────────────────────────────────────
-    try:
-        (disease_name, disease_confidence, disease_scores,
-         advice, disease_gradcam_path, has_model,
-         disease_threshold) = detect_disease(image_path, plant_name)
-    except Exception as exc:
-        logger.error("[Midori] Stage-2 error: %s", exc, exc_info=True)
+    if plant_name not in SUPPORTED_PLANTS:
         return _result(
-            plant_name=plant_name,
-            plant_confidence=plant_confidence,
-            plant_scores=plant_scores,
-            plant_gradcam_path=plant_gradcam_path,
-            status="failed",
-            message="Disease detection failed due to an internal error.",
+            plant_name=plant_name, plant_confidence=plant_conf * 100.0,
+            plant_scores=plant_scores, plant_gradcam_path=plant_gradcam,
+            status="no_model",
+            message=f"{plant_name} identified, but no disease model is available.",
+            stage1_latency_ms=stage1_ms, preprocessing_latency_ms=preprocess_ms,
+        )
+
+    # Stage 2: Disease detection
+    try:
+        display_label, raw_label, disease_conf, disease_scores, advice, \
+            disease_gradcam, has_model, stage2_ms = \
+            detect_disease(image_path, plant_name)
+    except Exception as exc:
+        logger.error("Stage 2 failed: %s", exc)
+        return _result(
+            plant_name=plant_name, plant_confidence=plant_conf * 100.0,
+            plant_scores=plant_scores, plant_gradcam_path=plant_gradcam,
+            status="failed", message="Disease detection failed.",
+            stage1_latency_ms=stage1_ms, preprocessing_latency_ms=preprocess_ms,
         )
 
     if not has_model:
         return _result(
-            plant_name=plant_name,
-            plant_confidence=plant_confidence,
-            plant_scores=plant_scores,
-            plant_gradcam_path=plant_gradcam_path,
-            status="no_model",
-            message=(
-                f"{plant_name} was identified, but no disease model is available yet. "
-                "Supported: Apple, Potato, Grape, Pepper."
-            ),
+            plant_name=plant_name, plant_confidence=plant_conf * 100.0,
+            plant_scores=plant_scores, plant_gradcam_path=plant_gradcam,
+            status="no_model", message=f"No disease model available for {plant_name}.",
+            stage1_latency_ms=stage1_ms, preprocessing_latency_ms=preprocess_ms,
         )
 
-    is_healthy = "healthy" in disease_name.lower()
+    is_healthy = display_label is not None and "healthy" in display_label.lower()
 
-    if not is_healthy and disease_confidence < disease_threshold:
-        logger.info(
-            "[Midori] Stage-2 confidence below threshold for %s: %.1f%% < %.1f%%",
-            plant_name, disease_confidence, disease_threshold,
-        )
+    # Notebook doesn't have a separate disease confidence threshold check,
+    # but we keep low-confidence reporting for server UX
+    if not is_healthy and disease_conf < CONFIDENCE_THRESHOLD:
         return _result(
-            plant_name=plant_name,
-            plant_confidence=plant_confidence,
-            plant_scores=plant_scores,
-            plant_gradcam_path=plant_gradcam_path,
-            disease_name=disease_name,
-            disease_confidence=disease_confidence,
-            disease_scores=disease_scores,
-            advice=advice,
-            disease_gradcam_path=disease_gradcam_path,
+            plant_name=plant_name, plant_confidence=plant_conf * 100.0,
+            plant_scores=plant_scores, plant_gradcam_path=plant_gradcam,
+            disease_name=display_label, disease_confidence=disease_conf * 100.0,
+            disease_scores=disease_scores, advice=advice,
+            disease_gradcam_path=disease_gradcam,
             status="low_confidence",
-            message=(
-                "Disease detection confidence is too low. "
-                "Please retake the photo in better lighting."
-            ),
+            message="Disease detection confidence is too low. Retake photo in better lighting.",
+            stage1_latency_ms=stage1_ms, stage2_latency_ms=stage2_ms,
+            preprocessing_latency_ms=preprocess_ms,
         )
 
-    if is_healthy:
-        return _result(
-            plant_name=plant_name,
-            plant_confidence=plant_confidence,
-            plant_scores=plant_scores,
-            plant_gradcam_path=plant_gradcam_path,
-            disease_name=disease_name,
-            disease_confidence=disease_confidence,
-            disease_scores=disease_scores,
-            advice=TREATMENT_ADVICE["Healthy"],
-            disease_gradcam_path=disease_gradcam_path,
-            is_healthy=True,
-            status="healthy",
-            message=(
-                "Your plant looks healthy! No signs of disease detected. "
-                "Keep up the good care! 🌱"
-            ),
-        )
+    status = "healthy" if is_healthy else "success"
+    message = "Your plant looks healthy! No disease detected." if is_healthy else ""
 
-    # ── Success ───────────────────────────────────────────────────────────────
     return _result(
-        plant_name=plant_name,
-        plant_confidence=plant_confidence,
-        plant_scores=plant_scores,
-        plant_gradcam_path=plant_gradcam_path,
-        disease_name=disease_name,
-        disease_confidence=disease_confidence,
-        disease_scores=disease_scores,
-        advice=advice,
-        disease_gradcam_path=disease_gradcam_path,
-        status="success",
-        message="",
+        plant_name=plant_name, plant_confidence=plant_conf * 100.0,
+        plant_scores=plant_scores, plant_gradcam_path=plant_gradcam,
+        disease_name=display_label, disease_confidence=disease_conf * 100.0,
+        disease_scores=disease_scores, advice=advice,
+        is_healthy=is_healthy, disease_gradcam_path=disease_gradcam,
+        status=status, message=message,
+        stage1_latency_ms=stage1_ms, stage2_latency_ms=stage2_ms,
+        preprocessing_latency_ms=preprocess_ms,
     )
 
 
 def _result(
-    plant_name: str | None = None,
-    plant_confidence: float = 0.0,
-    plant_scores: list | None = None,
-    plant_gradcam_path: str | None = None,
-    disease_name: str | None = None,
-    disease_confidence: float = 0.0,
-    disease_scores: list | None = None,
-    advice: str = "",
-    is_healthy: bool = False,
-    disease_gradcam_path: str | None = None,
-    status: str = "failed",
-    message: str = "",
-) -> dict:
-    """Convenience constructor for run_prediction return dict."""
+    plant_name=None, plant_confidence=0.0, plant_scores=None, plant_gradcam_path=None,
+    disease_name=None, disease_confidence=0.0, disease_scores=None,
+    advice="", is_healthy=False, disease_gradcam_path=None,
+    status="failed", message="",
+    stage1_latency_ms=0.0, stage2_latency_ms=0.0, preprocessing_latency_ms=0.0,
+):
+    total = stage1_latency_ms + stage2_latency_ms + preprocessing_latency_ms
     return {
-        "plant_name":           plant_name,
-        "plant_confidence":     plant_confidence,
-        "plant_scores":         plant_scores or [],
-        "plant_gradcam_path":   plant_gradcam_path,
-        "disease_name":         disease_name,
-        "disease_confidence":   disease_confidence,
-        "disease_scores":       disease_scores or [],
-        "advice":               advice,
-        "is_healthy":           is_healthy,
+        "plant_name": plant_name,
+        "plant_confidence": plant_confidence,
+        "plant_scores": plant_scores or [],
+        "plant_gradcam_path": plant_gradcam_path,
+        "disease_name": disease_name,
+        "disease_confidence": disease_confidence,
+        "disease_scores": disease_scores or [],
+        "advice": advice,
+        "is_healthy": is_healthy,
         "disease_gradcam_path": disease_gradcam_path,
-        "status":               status,
-        "message":              message,
+        "status": status,
+        "message": message,
+        "stage1_model": STAGE1_MODEL_NAME,
+        "stage2_model": STAGE2_MODEL_NAME,
+        "stage1_latency_ms": round(stage1_latency_ms, 1),
+        "stage2_latency_ms": round(stage2_latency_ms, 1),
+        "preprocessing_latency_ms": round(preprocessing_latency_ms, 1),
+        "total_latency_ms": round(total, 1),
     }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Warm-up  (called from apps.py ready())
-# ─────────────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Warm-up
+# ---------------------------------------------------------------------------
 
-def warm_up_models() -> None:
-    """Pre-load all available models at Django startup."""
-    logger.info("[Midori] Warming up two-stage models …")
+def warm_up_models():
+    """Pre-load all models at Django startup."""
+    logger.info("Warming up models...")
     _get_plant_model()
     for plant in DISEASE_CLASSES:
-        try:
-            _get_disease_model(plant)
-        except Exception as exc:
-            logger.warning("[Midori] Could not warm up %s model: %s", plant, exc)
-    logger.info("[Midori] Model warm-up complete.")
+        _get_disease_model(plant)
+    logger.info("All models loaded.")

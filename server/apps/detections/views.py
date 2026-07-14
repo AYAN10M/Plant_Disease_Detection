@@ -9,86 +9,70 @@ from rest_framework.views import APIView
 from diseases.models import Disease
 from plants.models import Plant
 
-from .engine import DISEASE_CLASSES, PLANT_CLASSES, run_prediction
+from .engine import (
+    DISEASE_CLASSES, PLANT_CLASSES, SUPPORTED_PLANTS,
+    STAGE1_MODEL_NAME, STAGE2_MODEL_NAME,
+    run_prediction,
+)
 from .models import Detection
 from .serializers import DetectionCreateSerializer, DetectionResultSerializer
 
 logger = logging.getLogger(__name__)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Rate limiting
-# ─────────────────────────────────────────────────────────────────────────────
-
 class DetectionRateThrottle(AnonRateThrottle):
-    """Allow 30 detection requests per minute per IP (configurable via DRF settings)."""
     rate = '30/min'
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Health check
-# ─────────────────────────────────────────────────────────────────────────────
-
 class HealthView(APIView):
-    """GET /api/detections/health/  — confirms the backend and models are ready."""
-
+    """GET /api/detections/health/"""
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
         from .engine import DISEASE_CLASSES, _get_disease_model, _get_plant_model
 
-        model_ready      = False
-        loaded_diseases  = []
+        model_ready = False
+        loaded_diseases = []
 
         try:
             _get_plant_model()
             model_ready = True
         except Exception as exc:
-            logger.warning("[Midori] Health: plant model not ready — %s", exc)
+            logger.warning("Health: plant model not ready — %s", exc)
 
         for plant in DISEASE_CLASSES:
             try:
-                m = _get_disease_model(plant)
-                if m is not None:
+                if _get_disease_model(plant) is not None:
                     loaded_diseases.append(plant)
             except Exception:
                 pass
 
         return Response({
-            "status":                "ok",
-            "model_ready":           model_ready,
-            "pipeline":              "two-stage",
-            # all_plant_classes — the 6 labels the Stage-1 identifier knows
-            "all_plant_classes":     PLANT_CLASSES,
-            # supported_plants — only the 4 with a disease model
-            "supported_plants":      list(DISEASE_CLASSES.keys()),
+            "status":              "ok",
+            "model_ready":         model_ready,
+            "pipeline":            "two-stage",
+            "stage1_architecture": STAGE1_MODEL_NAME,
+            "stage2_architecture": STAGE2_MODEL_NAME,
+            "all_plant_classes":   PLANT_CLASSES,
+            "supported_plants":    sorted(SUPPORTED_PLANTS),
             "disease_models_loaded": loaded_diseases,
         })
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Detect view
-# ─────────────────────────────────────────────────────────────────────────────
-
 class DetectView(APIView):
-    """POST /api/detections/ — upload a leaf photo, run the two-stage pipeline."""
-
+    """POST /api/detections/"""
     permission_classes = [permissions.AllowAny]
     throttle_classes   = [DetectionRateThrottle]
 
     def post(self, request):
-        # ── Validate input ────────────────────────────────────────────────────
         serializer = DetectionCreateSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         uploaded_image = serializer.validated_data["uploaded_image"]
         plant_override = serializer.validated_data.get("plant_override", "") or None
-        confidence_threshold = serializer.validated_data.get("confidence_threshold", 40.0)
+        confidence_threshold = serializer.validated_data.get("confidence_threshold", 55.0)
 
-        # ── Persist Detection record inside a transaction ─────────────────────
-        # Using transaction.atomic ensures that if prediction fails, the
-        # Detection record is rolled back — no orphaned 'processing' rows.
         try:
             with transaction.atomic():
                 detection = Detection.objects.create(
@@ -97,7 +81,6 @@ class DetectView(APIView):
                     status="processing",
                 )
 
-                # ── Run two-stage pipeline ────────────────────────────────────
                 try:
                     result = run_prediction(
                         image_path=detection.uploaded_image.path,
@@ -105,71 +88,65 @@ class DetectView(APIView):
                         confidence_threshold=confidence_threshold,
                     )
                 except Exception as exc:
-                    logger.error("[Midori] run_prediction unhandled error: %s", exc, exc_info=True)
-                    # Re-raise to trigger transaction rollback
+                    logger.error("run_prediction error: %s", exc, exc_info=True)
                     raise
 
-                # ── Populate model fields from result dict ────────────────────
-                detection.status         = result["status"]
-                detection.plant_confidence = result["plant_confidence"] / 100.0   # → 0–1
-                detection.plant_scores   = [
+                detection.status           = result["status"]
+                detection.predicted_plant_name = result.get("plant_name", "") or ""
+                detection.plant_confidence = result["plant_confidence"] / 100.0
+                detection.plant_scores     = [
                     {"name": name, "confidence": round(pct / 100.0, 4)}
                     for name, pct in result.get("plant_scores", [])
                 ]
-                detection.confidence     = result["disease_confidence"] / 100.0   # → 0–1
-                detection.disease_scores = [
+                detection.confidence       = result["disease_confidence"] / 100.0
+                detection.disease_scores   = [
                     {"name": name, "confidence": round(pct / 100.0, 4)}
                     for name, pct in result.get("disease_scores", [])
                 ]
-                detection.advice         = result.get("advice", "")
+                detection.advice = result.get("advice", "")
+
+                detection.stage1_latency_ms        = result.get("stage1_latency_ms", 0.0)
+                detection.stage2_latency_ms        = result.get("stage2_latency_ms", 0.0)
+                detection.preprocessing_latency_ms = result.get("preprocessing_latency_ms", 0.0)
+                detection.total_latency_ms         = result.get("total_latency_ms", 0.0)
+                detection.stage1_model             = result.get("stage1_model", STAGE1_MODEL_NAME)
+                detection.stage2_model             = result.get("stage2_model", STAGE2_MODEL_NAME)
 
                 if result.get("plant_gradcam_path"):
                     detection.plant_gradcam_image = result["plant_gradcam_path"]
-
                 if result.get("disease_gradcam_path"):
                     detection.gradcam_image = result["disease_gradcam_path"]
 
-                # ── Resolve Plant DB record ───────────────────────────────────
-                if result.get("plant_name"):
-                    db_plant = Plant.objects.filter(
-                        name__iexact=result["plant_name"]
-                    ).first()
+                if result.get("plant_name") and result["plant_name"] != "Unknown Plant":
+                    db_plant = Plant.objects.filter(name__iexact=result["plant_name"]).first()
                     if db_plant:
                         detection.plant = db_plant
 
-                # ── Resolve Disease DB record ────────────────────────────────
                 resolvable_statuses = {"success", "healthy", "low_confidence"}
                 if result["status"] in resolvable_statuses and result.get("disease_name"):
                     disease_name = result["disease_name"]
                     if detection.plant:
                         db_disease = Disease.objects.filter(
-                            plant=detection.plant,
-                            name__iexact=disease_name,
+                            plant=detection.plant, name__iexact=disease_name,
                         ).first()
                     else:
-                        db_disease = Disease.objects.filter(
-                            name__iexact=disease_name
-                        ).first()
+                        db_disease = Disease.objects.filter(name__iexact=disease_name).first()
                     if db_disease:
                         detection.disease = db_disease
 
                 detection.save()
 
         except Exception as exc:
-            logger.error("[Midori] Detection transaction failed: %s", exc, exc_info=True)
+            logger.error("Detection transaction failed: %s", exc, exc_info=True)
             return Response(
                 {"detail": "An internal error occurred during prediction."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        # ── Serialize & respond ───────────────────────────────────────────────
-        serialized = DetectionResultSerializer(
-            detection, context={"request": request}
-        )
-        # is_healthy is True when the engine explicitly says so OR
-        # when the top disease class is 'Healthy' (status='success' path).
-        disease_name = result.get("disease_name") or ""
+        serialized = DetectionResultSerializer(detection, context={"request": request})
+        disease_name: str = result.get("disease_name") or ""
         is_healthy = result.get("is_healthy", False) or disease_name.lower() == "healthy"
+
         return Response(
             {
                 "status":       result["status"],

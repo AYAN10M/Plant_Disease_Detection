@@ -1,37 +1,14 @@
-"""
-Midori — Application-wide constants (Single Source of Truth)
-=============================================================
-All thresholds, status messages, and configuration values used across the
-server codebase should be defined here and imported by other modules.
+"""Application-wide constants."""
 
-Import with:
-    from constants import PLANT_CONF_THRESHOLD, DISEASE_CONF_THRESHOLD, ...
-"""
+# Model architecture  (matches 14-07-26 notebook)
+STAGE1_MODEL = "EfficientNet"
+STAGE2_MODEL = "MobileNetV2"
 
-# ── Detection thresholds ──────────────────────────────────────────────────────
+# Confidence threshold  (matches notebook CONFIDENCE_THRESHOLD = 0.55)
+CONFIDENCE_THRESHOLD = 0.55
 
-PLANT_CONF_THRESHOLD   = 40.0   # Stage-1 : below this % → status = not_recognized
-DISEASE_CONF_THRESHOLD = 40.0   # Stage-2 : below this % → status = low_confidence
-
-# Per-plant disease thresholds (calibrated from diagnostic inference).
-# Grape model has systematic disease bias even on featureless images (~52-69%),
-# so we require higher confidence before calling a Grape disease result.
-DISEASE_CONF_THRESHOLDS: dict[str, float] = {
-    "Apple":  55.0,   # well-calibrated: defaults healthy, raise bar slightly
-    "Potato": 55.0,   # well-calibrated: defaults healthy, raise bar slightly
-    "Grape":  75.0,   # biased model: dark images trigger Esca at ~88% — needs high bar
-    "Pepper": 55.0,   # well-calibrated: defaults healthy, raise bar slightly
-}
-
-# Legacy alias used in a few older scripts
-CONFIDENCE_THRESHOLD = DISEASE_CONF_THRESHOLD / 100.0  # 0.40 (0–1 scale)
-
-# ── User-facing messages ──────────────────────────────────────────────────────
-
-HEALTHY_MESSAGE = (
-    "Your plant looks healthy! No signs of disease were detected. "
-    "Keep up the good care! 🌱"
-)
+# User-facing messages
+HEALTHY_MESSAGE = "Your plant looks healthy! No signs of disease were detected."
 
 LOW_CONFIDENCE_MESSAGE = (
     "Disease detection confidence is too low for a reliable diagnosis. "
@@ -45,9 +22,7 @@ NOT_RECOGNIZED_MESSAGE = (
 
 NO_MODEL_MESSAGE = (
     "The plant was identified but no disease model is available for it yet. "
-    "Supported plants for disease detection: Apple, Potato, Grape, Pepper."
+    "Supported: Apple, Corn, Grape, Pepper, Potato, Strawberry."
 )
 
-# ── Misc ──────────────────────────────────────────────────────────────────────
-
-MAX_DETECTION_HISTORY = 50   # Flutter-side history cap (matches history_service.dart)
+MAX_DETECTION_HISTORY = 50

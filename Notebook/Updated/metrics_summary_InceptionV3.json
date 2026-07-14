@@ -1,0 +1,18 @@
+{
+  "model_name": "InceptionV3",
+  "accuracy": 0.998987649321725,
+  "precision_macro": 0.9985233974744318,
+  "recall_macro": 0.9989211865064073,
+  "f1_macro": 0.9987191796526478,
+  "precision_weighted": 0.9989941413501229,
+  "recall_weighted": 0.998987649321725,
+  "f1_weighted": 0.998988534072852,
+  "inference_time_single_image_ms": 109.62759799993364,
+  "inference_time_batch_ms_per_image": 6.41203545252125,
+  "model_size_mb": 177.81150817871094,
+  "total_params": 22993191,
+  "trainable_params": 11727303,
+  "non_trainable_params": 11265888,
+  "final_train_accuracy": 0.9961915016174316,
+  "final_val_accuracy": 0.9987851977348328
+}

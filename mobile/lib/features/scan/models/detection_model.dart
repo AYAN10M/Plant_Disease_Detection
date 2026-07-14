@@ -60,6 +60,14 @@ class DetectionResult {
   final String status;
   final bool isHealthy;
 
+  // Latency & architecture
+  final double stage1LatencyMs;
+  final double stage2LatencyMs;
+  final double preprocessingLatencyMs;
+  final double totalLatencyMs;
+  final String stage1Model;
+  final String stage2Model;
+
   const DetectionResult({
     required this.id,
     required this.plantName,
@@ -80,14 +88,22 @@ class DetectionResult {
     this.uploadedImageUrl,
     required this.status,
     required this.isHealthy,
+    this.stage1LatencyMs = 0.0,
+    this.stage2LatencyMs = 0.0,
+    this.preprocessingLatencyMs = 0.0,
+    this.totalLatencyMs = 0.0,
+    this.stage1Model = 'EfficientNetV2-S',
+    this.stage2Model = 'MobileNetV2',
   });
 
-  factory DetectionResult.fromJson(Map<String, dynamic> json) {
+  factory DetectionResult.fromJson(Map<String, dynamic> json, {String? fallbackDiseaseName}) {
     final detail = json['disease_detail'] as Map<String, dynamic>?;
 
     String? diseaseName;
     if (detail != null && detail['name'] != null) {
       diseaseName = _humanizeModelLabel(detail['name'] as String);
+    } else if (fallbackDiseaseName != null && fallbackDiseaseName.isNotEmpty) {
+      diseaseName = fallbackDiseaseName;
     }
 
     // plant_scores  [{"name": "Apple", "confidence": 0.873}, ...]
@@ -128,6 +144,13 @@ class DetectionResult {
       uploadedImageUrl:    json['uploaded_image'] as String?,
       status:              json['status']         as String? ?? '',
       isHealthy:           json['is_healthy']     as bool? ?? false,
+      // Latency & architecture
+      stage1LatencyMs:        (json['stage1_latency_ms']        as num?)?.toDouble() ?? 0.0,
+      stage2LatencyMs:        (json['stage2_latency_ms']        as num?)?.toDouble() ?? 0.0,
+      preprocessingLatencyMs: (json['preprocessing_latency_ms'] as num?)?.toDouble() ?? 0.0,
+      totalLatencyMs:         (json['total_latency_ms']         as num?)?.toDouble() ?? 0.0,
+      stage1Model:            json['stage1_model']  as String? ?? 'EfficientNetV2-S',
+      stage2Model:            json['stage2_model']  as String? ?? 'MobileNetV2',
     );
   }
 }
@@ -140,8 +163,8 @@ class DetectionApiResponse {
   final String status;
   final String? message;
   final DetectionResult? data;
-  final bool isHealthy;          // top-level from API (reliable even w/o disease_detail)
-  final String? rawDiseaseName;  // top-level raw disease name from engine
+  final bool isHealthy;
+  final String? rawDiseaseName;
 
   const DetectionApiResponse({
     required this.status,
@@ -153,13 +176,14 @@ class DetectionApiResponse {
 
   factory DetectionApiResponse.fromJson(Map<String, dynamic> json) {
     final rawData = json['data'];
+    final topLevelDiseaseName = json['disease_name'] as String?;
     return DetectionApiResponse(
       status:         json['status']       as String? ?? 'failed',
       message:        json['message']      as String?,
       isHealthy:      json['is_healthy']   as bool?   ?? false,
-      rawDiseaseName: json['disease_name'] as String?,
+      rawDiseaseName: topLevelDiseaseName,
       data:    rawData is Map<String, dynamic>
-                  ? DetectionResult.fromJson(rawData)
+                  ? DetectionResult.fromJson(rawData, fallbackDiseaseName: topLevelDiseaseName)
                   : null,
     );
   }
@@ -199,8 +223,16 @@ class DetectionHistoryEntry {
   // Shared
   final bool isHealthy;
   final String? message;
-  final String? imageBase64;        // original uploaded image
-  final String? gradcamBase64;      // Stage-2 disease Grad-CAM
+  final String? imageBase64;
+  final String? gradcamBase64;
+
+  // Latency & architecture
+  final double stage1LatencyMs;
+  final double stage2LatencyMs;
+  final double preprocessingLatencyMs;
+  final double totalLatencyMs;
+  final String stage1Model;
+  final String stage2Model;
 
   const DetectionHistoryEntry({
     required this.createdAt,
@@ -220,9 +252,15 @@ class DetectionHistoryEntry {
     this.message,
     this.imageBase64,
     this.gradcamBase64,
+    this.stage1LatencyMs = 0.0,
+    this.stage2LatencyMs = 0.0,
+    this.preprocessingLatencyMs = 0.0,
+    this.totalLatencyMs = 0.0,
+    this.stage1Model = 'EfficientNetV2-S',
+    this.stage2Model = 'MobileNetV2',
   });
 
-  // ── Decoded image bytes (returns null on corrupt / missing data) ─────────
+  // ── Decoded image bytes ─────────────────────────────────────────────────
 
   Uint8List? get imageBytes {
     if (imageBase64 == null || imageBase64!.isEmpty) return null;
@@ -284,6 +322,13 @@ class DetectionHistoryEntry {
       message:           message,
       imageBase64:       imageBytes != null ? base64Encode(imageBytes) : null,
       gradcamBase64:     gradcamBytes != null ? base64Encode(gradcamBytes) : null,
+      // Latency & architecture
+      stage1LatencyMs:        result.stage1LatencyMs,
+      stage2LatencyMs:        result.stage2LatencyMs,
+      preprocessingLatencyMs: result.preprocessingLatencyMs,
+      totalLatencyMs:         result.totalLatencyMs,
+      stage1Model:            result.stage1Model,
+      stage2Model:            result.stage2Model,
     );
   }
 
@@ -307,10 +352,15 @@ class DetectionHistoryEntry {
         'message':            message,
         'imageBase64':        imageBase64,
         'gradcamBase64':      gradcamBase64,
+        'stage1LatencyMs':        stage1LatencyMs,
+        'stage2LatencyMs':        stage2LatencyMs,
+        'preprocessingLatencyMs': preprocessingLatencyMs,
+        'totalLatencyMs':         totalLatencyMs,
+        'stage1Model':            stage1Model,
+        'stage2Model':            stage2Model,
       };
 
   factory DetectionHistoryEntry.fromJson(Map<String, dynamic> json) {
-    // plant_scores — may be missing in older history entries
     List<Map<String, dynamic>> parseScores(dynamic raw) {
       if (raw is! List) return [];
       return raw.whereType<Map<String, dynamic>>().toList();
@@ -335,6 +385,13 @@ class DetectionHistoryEntry {
       message:         json['message']   as String?,
       imageBase64:     json['imageBase64']     as String?,
       gradcamBase64:   json['gradcamBase64']   as String?,
+      // Latency — gracefully handle older entries without these fields
+      stage1LatencyMs:        (json['stage1LatencyMs']        as num?)?.toDouble() ?? 0.0,
+      stage2LatencyMs:        (json['stage2LatencyMs']        as num?)?.toDouble() ?? 0.0,
+      preprocessingLatencyMs: (json['preprocessingLatencyMs'] as num?)?.toDouble() ?? 0.0,
+      totalLatencyMs:         (json['totalLatencyMs']         as num?)?.toDouble() ?? 0.0,
+      stage1Model:            json['stage1Model']  as String? ?? 'EfficientNetV2-S',
+      stage2Model:            json['stage2Model']  as String? ?? 'MobileNetV2',
     );
   }
 }

@@ -121,6 +121,12 @@ class HistoryCard extends StatelessWidget {
                         icon: Icons.schedule_rounded,
                         text: DateFormat('dd MMM, hh:mm a').format(entry.createdAt),
                       ),
+                      if (entry.totalLatencyMs > 0)
+                        _pillTag(
+                          context,
+                          icon: Icons.speed_rounded,
+                          text: '${entry.totalLatencyMs.toStringAsFixed(0)} ms',
+                        ),
                     ],
                   ),
                 ],
