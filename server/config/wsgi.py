@@ -1,7 +1,4 @@
-"""
-WSGI entrypoint for Midori.
-Production: gunicorn config.wsgi:application
-"""
+
 import os
 from django.core.wsgi import get_wsgi_application
 

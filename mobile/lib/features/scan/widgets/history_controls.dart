@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 
-/// Search scope filter for history entries.
 enum HistorySearchScope { all, plant, disease }
 
-/// Sort mode for history entries.
 enum HistorySortMode { newest, lowestConfidence }
 
-/// Search, filter, and sort controls for the history tab.
 class HistoryControls extends StatelessWidget {
   const HistoryControls({
     super.key,

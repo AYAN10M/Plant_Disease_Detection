@@ -1,7 +1,4 @@
-"""
-seed_model_catalog — populate Plant + Disease tables from model class labels.
-Usage: python manage.py seed_model_catalog [--keep-media]
-"""
+
 
 import shutil
 from pathlib import Path

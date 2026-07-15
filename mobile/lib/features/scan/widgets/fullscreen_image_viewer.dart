@@ -2,7 +2,6 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
-/// Full-screen zoomable image viewer with pinch-to-zoom.
 class FullscreenImageViewer extends StatelessWidget {
   const FullscreenImageViewer({
     super.key,
@@ -13,7 +12,6 @@ class FullscreenImageViewer extends StatelessWidget {
   final Uint8List imageBytes;
   final String title;
 
-  /// Shows this viewer as a modal dialog.
   static void show(BuildContext context,
       {required Uint8List imageBytes, required String title}) {
     showDialog<void>(

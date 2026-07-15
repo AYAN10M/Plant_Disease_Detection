@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_theme.dart';
 
-/// Animated confidence progress bar for a classification stage.
 class StageConfidenceBar extends StatelessWidget {
   const StageConfidenceBar({
     super.key,
@@ -13,7 +12,7 @@ class StageConfidenceBar extends StatelessWidget {
 
   final String stageLabel;
   final String label;
-  final double confidence; // 0–1
+  final double confidence;
 
   @override
   Widget build(BuildContext context) {
@@ -73,7 +72,6 @@ class StageConfidenceBar extends StatelessWidget {
   }
 }
 
-/// Compact confidence bar used in history card detail sections.
 class MiniConfidenceBar extends StatelessWidget {
   const MiniConfidenceBar({
     super.key,
@@ -82,7 +80,7 @@ class MiniConfidenceBar extends StatelessWidget {
   });
 
   final String label;
-  final double confidence; // 0–1
+  final double confidence;
 
   @override
   Widget build(BuildContext context) {

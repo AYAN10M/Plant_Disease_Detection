@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_constants.dart';
 
-/// Plant override dropdown — bypasses Stage 1 auto-detection.
 class PlantOverrideDropdown extends StatelessWidget {
   const PlantOverrideDropdown({
     super.key,

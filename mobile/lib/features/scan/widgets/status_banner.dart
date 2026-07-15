@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import '../models/detection_model.dart';
 
-/// Color-coded status banner for detection result cards.
 class StatusBanner extends StatelessWidget {
   const StatusBanner({
     super.key,
@@ -26,7 +25,7 @@ class StatusBanner extends StatelessWidget {
         border = AppColors.green600.withValues(alpha: 0.35);
         fg = AppColors.green600;
         icon = Icons.check_circle_rounded;
-        title = 'Healthy Plant — No disease detected! 🌱';
+        title = 'Healthy Plant, No disease detected!';
         break;
       case 'success':
         if (response.effectivelyHealthy) {
@@ -34,7 +33,7 @@ class StatusBanner extends StatelessWidget {
           border = AppColors.green600.withValues(alpha: 0.35);
           fg = AppColors.green600;
           icon = Icons.check_circle_rounded;
-          title = 'Healthy Plant — No disease detected! 🌱';
+          title = 'Healthy Plant, No disease detected!';
         } else {
           bg = const Color(0xFF1565C0).withValues(alpha: 0.08);
           border = const Color(0xFF1565C0).withValues(alpha: 0.28);
@@ -55,14 +54,14 @@ class StatusBanner extends StatelessWidget {
         border = const Color(0xFF1565C0).withValues(alpha: 0.30);
         fg = const Color(0xFF1565C0);
         icon = Icons.science_outlined;
-        title = '${result.plantName} — No Disease Model Yet';
+        title = '${result.plantName} - No Disease Model Yet';
         break;
       case 'low_confidence':
         bg = const Color(0xFFD84315).withValues(alpha: 0.09);
         border = const Color(0xFFD84315).withValues(alpha: 0.35);
         fg = const Color(0xFFD84315);
         icon = Icons.warning_amber_rounded;
-        title = 'Low Confidence — Retake Recommended';
+        title = 'Low Confidence - Retake Recommended';
         break;
       default:
         bg = const Color(0xFF1565C0).withValues(alpha: 0.08);

@@ -62,7 +62,7 @@ class DetectionResultSerializer(serializers.ModelSerializer):
             return obj.plant.name
         if obj.disease and obj.disease.plant:
             return obj.disease.plant.name
-        # Fall back to the ML engine's raw prediction
+        
         if obj.predicted_plant_name:
             return obj.predicted_plant_name
         return None

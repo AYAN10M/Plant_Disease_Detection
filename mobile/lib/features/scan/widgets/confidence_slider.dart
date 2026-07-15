@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_theme.dart';
 
-/// Min confidence threshold slider with contextual guidance.
 class ConfidenceSlider extends StatelessWidget {
   const ConfidenceSlider({
     super.key,
@@ -10,7 +9,7 @@ class ConfidenceSlider extends StatelessWidget {
     required this.onChanged,
   });
 
-  final double value; // 0–100
+  final double value;
   final ValueChanged<double> onChanged;
 
   @override
@@ -80,7 +79,7 @@ class ConfidenceSlider extends StatelessWidget {
               value: value,
               min: 0,
               max: 100,
-              divisions: 20, // steps of 5%
+              divisions: 20,
               onChanged: onChanged,
             ),
           ),
@@ -104,10 +103,10 @@ class ConfidenceSlider extends StatelessWidget {
   }
 
   String get _guidanceText {
-    if (value < 20) return 'Very lenient — almost any image accepted';
-    if (value < 40) return 'Lenient — accepts uncertain identifications';
-    if (value < 60) return 'Balanced — recommended for most images';
-    if (value < 80) return 'Strict — requires clear, well-lit photos';
-    return 'Very strict — only high-quality photos pass';
+    if (value < 20) return 'Very lenient - almost any image accepted';
+    if (value < 40) return 'Lenient - accepts uncertain identifications';
+    if (value < 60) return 'Balanced - recommended for most images';
+    if (value < 80) return 'Strict - requires clear, well-lit photos';
+    return 'Very strict - only high-quality photos pass';
   }
 }

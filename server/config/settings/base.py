@@ -1,4 +1,4 @@
-"""Base Django settings shared across all environments."""
+
 
 import sys
 from pathlib import Path

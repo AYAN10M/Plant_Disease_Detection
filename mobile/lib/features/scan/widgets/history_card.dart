@@ -8,7 +8,6 @@ import 'detail_line.dart';
 import 'image_slider.dart';
 import 'stage_confidence_bar.dart';
 
-/// Expandable history entry with swipe-to-delete and inline delete button.
 class HistoryCard extends StatelessWidget {
   const HistoryCard({
     super.key,
@@ -68,6 +67,8 @@ class HistoryCard extends StatelessWidget {
             key: PageStorageKey<String>('hist-$_cardKey'),
             initiallyExpanded: isExpanded,
             onExpansionChanged: onExpansionChanged,
+            shape: const RoundedRectangleBorder(),
+            collapsedShape: const RoundedRectangleBorder(),
             tilePadding:
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
@@ -84,7 +85,7 @@ class HistoryCard extends StatelessWidget {
             ),
             title: Text(
               isHealthy
-                  ? '${entry.plantName} — Healthy 🌱'
+                  ? '${entry.plantName} - Healthy 🌱'
                   : (entry.diseaseName ?? 'No disease matched'),
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
@@ -99,7 +100,7 @@ class HistoryCard extends StatelessWidget {
                           fontSize: 13,
                           color: cs.onSurface.withValues(alpha: 0.6))),
                   const SizedBox(height: 8),
-                  // Pill-shaped tags
+
                   Wrap(
                     spacing: 6,
                     runSpacing: 6,
@@ -130,7 +131,7 @@ class HistoryCard extends StatelessWidget {
               const Divider(height: 1),
               const SizedBox(height: 12),
 
-              // Swipeable image slider
+
               if (entry.imageBytes != null) ...[
                 ImageSlider.fromHistoryEntry(
                   imageBytes: entry.imageBytes,
@@ -141,7 +142,7 @@ class HistoryCard extends StatelessWidget {
                 const SizedBox(height: 14),
               ],
 
-              // Confidence bars
+
               DetailGroup(
                 title: 'Details',
                 children: [
@@ -166,7 +167,7 @@ class HistoryCard extends StatelessWidget {
                   if (entry.isHealthy) ...[
                     const DetailLine(
                         label: 'Status',
-                        value: '✅ No disease detected — plant looks healthy!'),
+                        value: '✅ No disease detected - plant looks healthy!'),
                   ] else ...[
                     if (entry.diseaseCause != null)
                       DetailLine(label: 'Cause', value: entry.diseaseCause!),
@@ -200,7 +201,7 @@ class HistoryCard extends StatelessWidget {
 
               const SizedBox(height: 14),
 
-              // Delete button (visible in expanded form)
+
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
@@ -228,7 +229,6 @@ class HistoryCard extends StatelessWidget {
     );
   }
 
-  /// Pill-shaped tag with icon, text, and optional confidence coloring.
   Widget _pillTag(
     BuildContext context, {
     required IconData icon,

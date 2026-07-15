@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_theme.dart';
 
-/// Bordered section container with a title header.
 class DetailGroup extends StatelessWidget {
   const DetailGroup({
     super.key,

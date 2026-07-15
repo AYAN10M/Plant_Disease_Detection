@@ -1,7 +1,4 @@
-"""
-ASGI entrypoint for Midori.
-Production: uvicorn config.asgi:application
-"""
+
 import os
 from django.core.asgi import get_asgi_application
 

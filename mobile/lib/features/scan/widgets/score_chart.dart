@@ -4,7 +4,6 @@ import '../../../core/theme/app_theme.dart';
 import '../models/detection_model.dart';
 import 'detail_group.dart';
 
-/// Sorted bar chart of all classification scores for a stage.
 class ScoreChart extends StatelessWidget {
   const ScoreChart({
     super.key,

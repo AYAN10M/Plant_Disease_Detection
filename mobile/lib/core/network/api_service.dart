@@ -7,9 +7,7 @@ import 'package:http/http.dart' as http;
 import '../constants/app_constants.dart';
 import '../../features/scan/models/detection_model.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Exception
-// ─────────────────────────────────────────────────────────────────────────────
+
 
 class MidoriApiException implements Exception {
   final String message;
@@ -19,9 +17,7 @@ class MidoriApiException implements Exception {
   String toString() => 'MidoriApiException: $message';
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Client
-// ─────────────────────────────────────────────────────────────────────────────
+
 
 class MidoriApiClient {
   final http.Client _http;
@@ -31,23 +27,20 @@ class MidoriApiClient {
       : _http   = client ?? http.Client(),
         baseUrl = baseUrl ?? _resolveBaseUrl();
 
-  /// Priority: --dart-define=MIDORI_BASE_URL → platform default.
+
   static String _resolveBaseUrl() {
     if (AppConstants.serverBaseUrl.isNotEmpty) return AppConstants.serverBaseUrl;
 
     if (kIsWeb) return 'http://localhost:8000';
 
-    // On Android (both emulator and real device), use the LAN IP.
-    // 10.0.2.2 only works inside the emulator; LAN IP works everywhere.
     if (Platform.isAndroid) {
       return 'http://${AppConstants.lanIp}:8000';
     }
 
-    // iOS, macOS, Windows, Linux
     return 'http://localhost:8000';
   }
 
-  // ── Health check ──────────────────────────────────────────────────────────
+
 
   Future<bool> checkServerHealth() async {
     try {
@@ -61,12 +54,9 @@ class MidoriApiClient {
     }
   }
 
-  // ── Detect ────────────────────────────────────────────────────────────────
 
-  /// POST /api/detections/ — upload [imageBytes] and run the two-stage pipeline.
-  ///
-  /// [plantOverride]       : if non-null, skips Stage-1 plant ID
-  /// [confidenceThreshold] : Stage-1 min confidence % (0–100, default 40)
+
+
   Future<DetectionApiResponse> detectImage({
     required Uint8List imageBytes,
     required String filename,
@@ -94,7 +84,7 @@ class MidoriApiClient {
       request.fields['plant_override'] = plantOverride;
     }
 
-    // Always send threshold so backend uses the user's chosen value
+
     request.fields['confidence_threshold'] =
         confidenceThreshold.toStringAsFixed(1);
 
@@ -123,14 +113,14 @@ class MidoriApiClient {
     } catch (e) {
       if (e.toString().contains('TimeoutException')) {
         throw const MidoriApiException(
-          'Request timed out. The server is taking too long — please try again.',
+          'Request timed out. The server is taking too long - please try again.',
         );
       }
       throw MidoriApiException('Unexpected error: $e');
     }
   }
 
-  // ── Fetch raw bytes (for Grad-CAM images) ────────────────────────────────
+
 
   Future<Uint8List?> fetchBytes(String? urlOrPath) async {
     if (urlOrPath == null || urlOrPath.isEmpty) return null;
@@ -150,7 +140,7 @@ class MidoriApiClient {
     }
   }
 
-  // ── Error parsing ─────────────────────────────────────────────────────────
+
 
   String _extractError(String body, int statusCode) {
     try {

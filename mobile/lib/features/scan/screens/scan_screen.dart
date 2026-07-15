@@ -18,7 +18,6 @@ import '../widgets/notice_card.dart';
 import '../widgets/plant_override_dropdown.dart';
 import '../widgets/result_card.dart';
 
-/// Main scan screen — manages navigation, state, and business logic.
 
 class ScanScreen extends StatefulWidget {
   const ScanScreen({super.key});
@@ -28,18 +27,18 @@ class ScanScreen extends StatefulWidget {
 }
 
 class _ScanScreenState extends State<ScanScreen> {
-  // ── Services ───────────────────────────────────────────────────────────────
+
   final _historyStore = DetectionHistoryStore();
   final _picker = ImagePicker();
   final _apiClient = MidoriApiClient();
 
-  // ── Navigation ─────────────────────────────────────────────────────────────
+
   int _currentIndex = 0;
 
-  // ── Server health ──────────────────────────────────────────────────────────
+
   bool _serverReady = false;
 
-  // ── Scan state ─────────────────────────────────────────────────────────────
+
   bool _detecting = false;
   XFile? _selectedImage;
   Uint8List? _selectedImageBytes;
@@ -54,7 +53,7 @@ class _ScanScreenState extends State<ScanScreen> {
   double _minConfidence = 40.0;
   bool _settingsExpanded = false;
 
-  // ── History state ──────────────────────────────────────────────────────────
+
   bool _loadingHistory = false;
   String? _historyErrorMessage;
   String? _historyErrorActionLabel;
@@ -68,10 +67,10 @@ class _ScanScreenState extends State<ScanScreen> {
   HistorySortMode _historySortMode = HistorySortMode.newest;
   final _historySearchController = TextEditingController();
 
-  // Pending save retry
+
   DetectionHistoryEntry? _pendingHistoryEntry;
 
-  // ── Lifecycle ──────────────────────────────────────────────────────────────
+
 
   @override
   void initState() {
@@ -87,18 +86,14 @@ class _ScanScreenState extends State<ScanScreen> {
     super.dispose();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Server health
-  // ─────────────────────────────────────────────────────────────────────────
+
 
   Future<void> _pingServer() async {
     final ready = await _apiClient.checkServerHealth();
     if (mounted) setState(() => _serverReady = ready);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // History CRUD
-  // ─────────────────────────────────────────────────────────────────────────
+
 
   Future<void> _loadHistory() async {
     if (!mounted) return;
@@ -181,9 +176,7 @@ class _ScanScreenState extends State<ScanScreen> {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Permissions & image picking
-  // ─────────────────────────────────────────────────────────────────────────
+
 
   Future<bool> _ensureMediaPermission(ImageSource source) async {
     if (source == ImageSource.camera) {
@@ -292,9 +285,7 @@ class _ScanScreenState extends State<ScanScreen> {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Detection
-  // ─────────────────────────────────────────────────────────────────────────
+
 
   Future<void> _runDetection() async {
     if (_selectedImage == null || _selectedImageBytes == null) {
@@ -344,7 +335,7 @@ class _ScanScreenState extends State<ScanScreen> {
 
       if (!mounted) return;
 
-      // ── Handle not_a_plant ─────────────────────────────────────────────
+
       if (response.status == 'not_a_plant') {
         setState(() {
           _detecting = false;
@@ -358,7 +349,7 @@ class _ScanScreenState extends State<ScanScreen> {
         return;
       }
 
-      // ── Fetch both Grad-CAM images in parallel ─────────────────────────
+
       final plantGradcamUrl = response.data?.plantGradcamImageUrl;
       final diseaseGradcamUrl = response.data?.gradcamImageUrl;
 
@@ -379,7 +370,7 @@ class _ScanScreenState extends State<ScanScreen> {
         }
       });
 
-      // ── Save history entry ─────────────────────────────────────────────
+
       if (response.data != null) {
         final entry = DetectionHistoryEntry.fromDetection(
           response.data!,
@@ -410,18 +401,14 @@ class _ScanScreenState extends State<ScanScreen> {
     });
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // UI helpers
-  // ─────────────────────────────────────────────────────────────────────────
+
 
   EdgeInsets _responsivePadding(BoxConstraints c) {
     final h = c.maxWidth > 600 ? 24.0 : 16.0;
     return EdgeInsets.symmetric(horizontal: h, vertical: 16);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // History filtering
-  // ─────────────────────────────────────────────────────────────────────────
+
 
   List<DetectionHistoryEntry> _filteredHistoryEntries() {
     final query = _historySearchController.text.trim().toLowerCase();
@@ -463,9 +450,7 @@ class _ScanScreenState extends State<ScanScreen> {
       (e.diseaseDescription?.toLowerCase().contains(q) ?? false) ||
       (e.advice?.toLowerCase().contains(q) ?? false);
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Build
-  // ─────────────────────────────────────────────────────────────────────────
+
 
   @override
   Widget build(BuildContext context) {
@@ -486,7 +471,7 @@ class _ScanScreenState extends State<ScanScreen> {
         ),
         centerTitle: false,
         actions: [
-          // Server status chip
+
           Padding(
             padding: const EdgeInsets.only(right: 4),
             child: Container(
@@ -565,9 +550,7 @@ class _ScanScreenState extends State<ScanScreen> {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Scan tab
-  // ─────────────────────────────────────────────────────────────────────────
+
 
   Widget _buildScanTab() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -582,7 +565,7 @@ class _ScanScreenState extends State<ScanScreen> {
             child: ListView(
               padding: _responsivePadding(constraints).copyWith(bottom: 40),
               children: [
-                // Image + buttons
+
                 ImageCard(
                   selectedImageBytes: _selectedImageBytes,
                   plantGradcamBytes: _plantGradcamBytes,
@@ -595,7 +578,7 @@ class _ScanScreenState extends State<ScanScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // Collapsible options
+
                 GestureDetector(
                   onTap: () => setState(
                       () => _settingsExpanded = !_settingsExpanded),
@@ -666,7 +649,7 @@ class _ScanScreenState extends State<ScanScreen> {
                       : const SizedBox.shrink(),
                 ),
 
-                // Feedback / loading / results
+
                 if (_detecting) ...[
                   const SizedBox(height: 16),
                   NoticeCard(
@@ -713,9 +696,7 @@ class _ScanScreenState extends State<ScanScreen> {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // History tab
-  // ─────────────────────────────────────────────────────────────────────────
+
 
   Widget _buildHistoryTab() {
     final visible = _filteredHistoryEntries();

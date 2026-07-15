@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Bold label + muted value row for structured data display.
 class DetailLine extends StatelessWidget {
   const DetailLine({
     super.key,

@@ -4,7 +4,7 @@ from .models import Disease
 
 class DiseaseInline(admin.TabularInline):
     model  = Disease
-    extra  = 1   # show 1 empty form row by default
+    extra  = 1   
     fields = ['name', 'severity', 'cause', 'remedy']
 
 

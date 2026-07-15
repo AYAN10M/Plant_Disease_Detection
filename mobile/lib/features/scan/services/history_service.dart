@@ -5,11 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../models/detection_model.dart';
 
-/// Persists detection history to SharedPreferences as a JSON list.
-///
-/// All I/O is hardened: corrupt entries are skipped rather than crashing the
-/// app, and the list is capped at [AppConstants.maxHistoryEntries] to keep
-/// storage small.
 class DetectionHistoryStore {
   Future<List<DetectionHistoryEntry>> loadEntries() async {
     final prefs   = await SharedPreferences.getInstance();
@@ -20,7 +15,6 @@ class DetectionHistoryStore {
     try {
       raw = jsonDecode(encoded) as List<dynamic>;
     } catch (_) {
-      // Stored JSON is corrupt — start fresh rather than crashing.
       await prefs.remove(AppConstants.historyPrefsKey);
       return [];
     }
@@ -32,7 +26,6 @@ class DetectionHistoryStore {
           entries.add(DetectionHistoryEntry.fromJson(item));
         }
       } catch (_) {
-        // Skip any individual corrupt entry silently.
       }
     }
     return entries;

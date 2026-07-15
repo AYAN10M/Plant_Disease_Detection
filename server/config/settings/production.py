@@ -1,10 +1,10 @@
-"""Production settings."""
-from .base import *  # noqa: F401, F403
+
+from .base import *  
 import os
 
 DEBUG = False
 
-if SECRET_KEY == "change-me-in-production":  # noqa: F405
+if SECRET_KEY == "change-me-in-production":  
     raise ValueError("Set a strong SECRET_KEY in your environment variables before deploying.")
 
 CORS_ALLOW_ALL_ORIGINS = False

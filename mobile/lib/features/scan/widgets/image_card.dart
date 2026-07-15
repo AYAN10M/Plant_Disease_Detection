@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import 'image_slider.dart';
 
-/// Image selection card with preview slider, source buttons, and detect CTA.
 class ImageCard extends StatelessWidget {
   const ImageCard({
     super.key,
@@ -34,7 +33,7 @@ class ImageCard extends StatelessWidget {
 
     return Column(
       children: [
-        // Image preview area
+
         if (selectedImageBytes == null)
           _buildPlaceholder(context, isDark)
         else
@@ -47,7 +46,7 @@ class ImageCard extends StatelessWidget {
           ),
         const SizedBox(height: 20),
 
-        // Source buttons
+
         Row(
           children: [
             Expanded(
@@ -73,7 +72,7 @@ class ImageCard extends StatelessWidget {
         ),
         const SizedBox(height: 16),
 
-        // Detect button
+
         SizedBox(
           width: double.infinity,
           height: 56,

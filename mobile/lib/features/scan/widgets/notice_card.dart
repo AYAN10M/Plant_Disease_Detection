@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_theme.dart';
 
-/// Feedback/error/loading notice card with icon, title, and optional action.
 class NoticeCard extends StatelessWidget {
   const NoticeCard({
     super.key,

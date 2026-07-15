@@ -25,7 +25,7 @@ class DetectionRateThrottle(AnonRateThrottle):
 
 
 class HealthView(APIView):
-    """GET /api/detections/health/"""
+
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
@@ -60,7 +60,7 @@ class HealthView(APIView):
 
 
 class DetectView(APIView):
-    """POST /api/detections/"""
+
     permission_classes = [permissions.AllowAny]
     throttle_classes   = [DetectionRateThrottle]
 

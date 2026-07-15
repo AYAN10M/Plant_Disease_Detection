@@ -1,11 +1,4 @@
-"""
-Two-Stage Plant Disease Detection Engine
-Replicated from plant_disease_pipeline_v4_WORKING.ipynb (14-07-26)
-Stage 1: EfficientNet  ->  plant identification (7 classes)
-Stage 2: MobileNetV2   ->  per-plant disease classification
 
-Compatible with Python 3.12/3.13 + TensorFlow 2.19+ (Keras 3)
-"""
 
 import logging
 import time
@@ -19,9 +12,9 @@ from PIL import Image
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Lazy imports
-# ---------------------------------------------------------------------------
+
+
+
 
 def _import_tf():
     import tensorflow as tf
@@ -41,9 +34,9 @@ def _import_cv2():
         return None
 
 
-# ---------------------------------------------------------------------------
-# Model paths  (14-07-26 folder)
-# ---------------------------------------------------------------------------
+
+
+
 
 def _ml_dir() -> Path:
     try:
@@ -73,15 +66,15 @@ def _gradcam_dir(sub: str) -> Path:
     return d
 
 
-# ---------------------------------------------------------------------------
-# Class labels  (matching training notebook Cell 3 exactly)
-# ---------------------------------------------------------------------------
+
+
+
 
 PLANT_CLASSES = ["Apple", "Corn", "Grape", "Others", "Pepper", "Potato", "Strawberry"]
 
 SUPPORTED_PLANTS = {"Apple", "Corn", "Grape", "Pepper", "Potato", "Strawberry"}
 
-# Stage-2 disease labels (alphabetical folder names from training data)
+
 DISEASE_CLASSES = {
     "Apple": [
         "Apple___Apple_scab",
@@ -116,7 +109,7 @@ DISEASE_CLASSES = {
     ],
 }
 
-# Folder-name → human-readable display name  (from notebook Cell 3)
+
 DISEASE_DISPLAY = {
     "Apple___Apple_scab":                                      "Apple Scab",
     "Apple___Black_rot":                                       "Black Rot",
@@ -158,20 +151,19 @@ TREATMENT_ADVICE = {
     "Healthy":                             "No disease detected. Maintain regular watering and fertilisation schedule.",
 }
 
-# Notebook configuration
+
 CONFIDENCE_THRESHOLD = 0.55
 IMG_SIZE = (224, 224)
 
 
-# ---------------------------------------------------------------------------
-# Preprocessing
-# Stage 1 model has built-in Rescaling + Normalization layers → raw [0, 255]
-# Stage 2 model (MobileNetV2) needs external preprocessing → [-1, 1]
-# ---------------------------------------------------------------------------
+
+
+
+
+
 
 def _preprocess_stage1(image_path: str) -> np.ndarray:
-    """Load, resize to 224×224, return raw [0-255] float32 batch.
-    Stage 1 model has built-in Rescaling + Normalization layers."""
+
     pil_image = Image.open(image_path).convert("RGB")
     img = pil_image.resize((IMG_SIZE[1], IMG_SIZE[0]))
     arr = np.array(img, dtype=np.float32)
@@ -179,7 +171,7 @@ def _preprocess_stage1(image_path: str) -> np.ndarray:
 
 
 def _preprocess_stage2(image_path: str) -> np.ndarray:
-    """Load, resize to 224×224, apply MobileNetV2 preprocessing → [-1, 1]."""
+
     keras = _import_keras()
     preprocess_input = keras.applications.mobilenet_v2.preprocess_input
     pil_image = Image.open(image_path).convert("RGB")
@@ -189,20 +181,16 @@ def _preprocess_stage2(image_path: str) -> np.ndarray:
     return np.expand_dims(arr, axis=0)
 
 
-# ---------------------------------------------------------------------------
-# Model loading  (matches notebook Cell 5 — safe_load_model with fallbacks)
-# ---------------------------------------------------------------------------
+
+
+
 
 def _safe_load_model(path: str):
-    """Load a .keras model robustly across TF version differences.
-    Strategy 1: normal load
-    Strategy 2: compile=False
-    Strategy 3: patched BN + compile=False
-    Matches notebook's safe_load_model() exactly."""
+
     tf = _import_tf()
     keras = _import_keras()
 
-    # Strategy 1: normal load
+    
     try:
         m = keras.models.load_model(str(path))
         logger.info("  Loaded %s (strategy 1)", path)
@@ -210,7 +198,7 @@ def _safe_load_model(path: str):
     except Exception as e1:
         logger.debug("  Strategy 1 failed: %s", type(e1).__name__)
 
-    # Strategy 2: compile=False
+    
     try:
         m = keras.models.load_model(str(path), compile=False)
         logger.info("  Loaded %s (strategy 2: compile=False)", path)
@@ -218,7 +206,7 @@ def _safe_load_model(path: str):
     except Exception as e2:
         logger.debug("  Strategy 2 failed: %s", type(e2).__name__)
 
-    # Strategy 3: patched BatchNormalization + compile=False
+    
     _KNOWN_BN_KWARGS = {
         'name', 'trainable', 'dtype', 'axis', 'momentum', 'epsilon',
         'center', 'scale', 'beta_initializer', 'gamma_initializer',
@@ -228,7 +216,7 @@ def _safe_load_model(path: str):
     }
 
     class _PatchedBatchNormalization(tf.keras.layers.BatchNormalization):
-        """BatchNormalization that silently drops unknown kwargs."""
+
         @classmethod
         def from_config(cls, config):
             clean_config = {k: v for k, v in config.items() if k in _KNOWN_BN_KWARGS}
@@ -248,14 +236,14 @@ def _safe_load_model(path: str):
 
 
 @lru_cache(maxsize=1)
-def _get_plant_model():  # type: ignore[misc]
+def _get_plant_model():  
     path = _model_paths()["plant"]
     if not path.exists():
         raise FileNotFoundError(f"Plant model not found at {path}")
     logger.info("Loading EfficientNet Stage-1 from %s", path)
     model = _safe_load_model(str(path))
     assert model is not None, f"Failed to load model from {path}"
-    n_out = model.output_shape[-1]  # type: ignore[union-attr]
+    n_out = model.output_shape[-1]  
     logger.info("Plant model ready - %d classes (expected %d)", n_out, len(PLANT_CLASSES))
     if n_out != len(PLANT_CLASSES):
         logger.warning("Stage 1 class count mismatch: model=%d, expected=%d", n_out, len(PLANT_CLASSES))
@@ -263,7 +251,7 @@ def _get_plant_model():  # type: ignore[misc]
 
 
 @lru_cache(maxsize=6)
-def _get_disease_model(plant_name: str):  # type: ignore[misc]
+def _get_disease_model(plant_name: str):  
     path = _model_paths().get(plant_name)
     if path is None or not path.exists():
         return None
@@ -271,18 +259,17 @@ def _get_disease_model(plant_name: str):  # type: ignore[misc]
     model = _safe_load_model(str(path))
     assert model is not None, f"Failed to load model from {path}"
     expected = len(DISEASE_CLASSES.get(plant_name, []))
-    if model.output_shape[-1] != expected:  # type: ignore[union-attr]
-        logger.warning("%s class mismatch: model=%d, expected=%d", plant_name, model.output_shape[-1], expected)  # type: ignore[union-attr]
+    if model.output_shape[-1] != expected:  
+        logger.warning("%s class mismatch: model=%d, expected=%d", plant_name, model.output_shape[-1], expected)  
     return model
 
 
-# ---------------------------------------------------------------------------
-# Grad-CAM  (from notebook Cell 8 — v4 FIXED, always shows heatmap)
-# ---------------------------------------------------------------------------
+
+
+
 
 def _find_gradcam_layer(model):
-    """Walk model layers in reverse and return the last layer
-    with a 4-D spatial output (batch, H, W, C) where H > 1."""
+
     keras = _import_keras()
     SPATIAL_TYPES = (
         keras.layers.Conv2D,
@@ -296,7 +283,7 @@ def _find_gradcam_layer(model):
         if not isinstance(layer, SPATIAL_TYPES):
             continue
         try:
-            out = layer.output_shape  # type: ignore[union-attr]
+            out = layer.output_shape  
             if isinstance(out, list):
                 out = out[0]
             if len(out) == 4 and out[1] is not None and out[1] > 1:
@@ -307,9 +294,7 @@ def _find_gradcam_layer(model):
 
 
 def _make_heatmap(model, img_array, target_layer, class_index):
-    """Core Grad-CAM: watches conv_out inside the tape so gradients
-    are non-None even through frozen/non-differentiable BN layers.
-    Returns float32 (H, W) normalised to [0, 1], or None on failure."""
+
     tf = _import_tf()
     keras = _import_keras()
 
@@ -339,36 +324,33 @@ def _make_heatmap(model, img_array, target_layer, class_index):
 
     cam = np.dot(feat, pooled)
 
-    # Normalise: try ReLU + max-norm first (standard Grad-CAM)
+    
     cam_relu = np.maximum(cam, 0)
     amax = cam_relu.max()
     if amax > 1e-8:
         return (cam_relu / amax).astype(np.float32)
 
-    # Fallback: full min-max (no ReLU)
+    
     cmin, cmax = cam.min(), cam.max()
     if cmax - cmin > 1e-8:
         return ((cam - cmin) / (cmax - cmin)).astype(np.float32)
 
-    # Genuinely flat
+    
     return np.full(cam.shape, 0.5, dtype=np.float32)
 
 
 def _generate_gradcam_overlay(model, processed_arr, pil_image):
-    """Generate Grad-CAM heatmap blended on original image.
-    Returns uint8 numpy array (H, W, 3) or None.
-    ALWAYS returns a coloured heatmap — never the plain original image.
-    Matches notebook Cell 8 generate_gradcam() exactly."""
+
     tf = _import_tf()
     cv2 = _import_cv2()
 
     orig_rgb = np.array(pil_image.convert('RGB'))
     orig_h, orig_w = orig_rgb.shape[:2]
 
-    # Step 1: find the best convolutional layer
+    
     target_layer = _find_gradcam_layer(model)
 
-    # Step 2: compute Grad-CAM heatmap
+    
     cam = None
     if target_layer is not None:
         try:
@@ -379,7 +361,7 @@ def _generate_gradcam_overlay(model, processed_arr, pil_image):
             logger.debug("Grad-CAM heatmap failed: %s", e)
             cam = None
 
-    # Step 3: edge-based fallback (always produces visible output)
+    
     if cam is None and cv2 is not None:
         gray  = cv2.cvtColor(orig_rgb, cv2.COLOR_RGB2GRAY)
         edges = cv2.Canny(gray, 50, 150).astype(np.float32)
@@ -390,13 +372,13 @@ def _generate_gradcam_overlay(model, processed_arr, pil_image):
     if cam is None:
         return None
 
-    # Step 4: resize to original image dimensions
+    
     if cv2 is not None:
         cam_resized = cv2.resize(cam, (orig_w, orig_h), interpolation=cv2.INTER_LINEAR)
     else:
         cam_resized = np.array(Image.fromarray(np.uint8(255 * cam)).resize((orig_w, orig_h))) / 255.0
 
-    # Step 5: apply JET colormap
+    
     cam_u8 = np.uint8(255 * np.clip(cam_resized, 0, 1))
 
     try:
@@ -411,7 +393,7 @@ def _generate_gradcam_overlay(model, processed_arr, pil_image):
 
     jet_heatmap = np.uint8(jet_lut[cam_u8] * 255)
 
-    # Step 6: blend — 55% original + 45% heatmap
+    
     if cv2 is not None:
         overlay = cv2.addWeighted(orig_rgb, 0.55, jet_heatmap, 0.45, 0)
     else:
@@ -421,7 +403,7 @@ def _generate_gradcam_overlay(model, processed_arr, pil_image):
 
 
 def _save_gradcam(overlay, sub="disease"):
-    """Save a Grad-CAM overlay to disk."""
+
     try:
         filename = f"{uuid.uuid4().hex}.png"
         save_path = _gradcam_dir(sub) / filename
@@ -432,12 +414,12 @@ def _save_gradcam(overlay, sub="disease"):
         return None
 
 
-# ---------------------------------------------------------------------------
-# Stage 1: Plant Identification  (matches notebook Cell 6)
-# ---------------------------------------------------------------------------
+
+
+
 
 def identify_plant(image_path):
-    """Returns (plant_name, confidence_0_1, all_probs_dict, gradcam_path, latency_ms)."""
+
     model = _get_plant_model()
 
     t0 = time.perf_counter()
@@ -453,7 +435,7 @@ def identify_plant(image_path):
     confidence = float(preds[top_idx])
     all_probs  = dict(zip(PLANT_CLASSES, preds.tolist()))
 
-    # Notebook logic: if below threshold or class is "Others" → Unknown Plant
+    
     if confidence < CONFIDENCE_THRESHOLD or PLANT_CLASSES[top_idx] == "Others":
         plant_name = "Unknown Plant"
     else:
@@ -461,10 +443,10 @@ def identify_plant(image_path):
 
     logger.info("Stage 1: %s (%.1f%%) [%.0fms]", plant_name, confidence * 100, latency)
 
-    # Plant scores as list of (name, pct) for backward compatibility
+    
     plant_scores = [(PLANT_CLASSES[i], float(preds[i]) * 100.0) for i in range(len(PLANT_CLASSES))]
 
-    # Grad-CAM for plant identification
+    
     gradcam = None
     try:
         pil_img = Image.open(image_path).convert("RGB")
@@ -477,12 +459,12 @@ def identify_plant(image_path):
     return plant_name, confidence, plant_scores, gradcam, latency
 
 
-# ---------------------------------------------------------------------------
-# Stage 2: Disease Detection  (matches notebook Cell 7)
-# ---------------------------------------------------------------------------
+
+
+
 
 def detect_disease(image_path, plant_name):
-    """Returns (display_label, raw_label, confidence_0_1, scores, advice, gradcam, has_model, latency_ms)."""
+
     disease_classes = DISEASE_CLASSES.get(plant_name)
     model = _get_disease_model(plant_name)
 
@@ -501,7 +483,7 @@ def detect_disease(image_path, plant_name):
     top_idx    = int(np.argmax(preds))
     confidence = float(preds[top_idx])
 
-    # Get raw folder-style label and convert to display name
+    
     if disease_classes and top_idx < len(disease_classes):
         raw_label     = disease_classes[top_idx]
         display_label = DISEASE_DISPLAY.get(raw_label, raw_label.split("___")[-1].replace("_", " "))
@@ -511,7 +493,7 @@ def detect_disease(image_path, plant_name):
 
     advice = TREATMENT_ADVICE.get(display_label, "Consult a local agronomist.")
 
-    # Scores with display names
+    
     scores = [
         (DISEASE_DISPLAY.get(disease_classes[i], disease_classes[i]), float(preds[i]) * 100.0)
         for i in range(len(disease_classes))
@@ -519,7 +501,7 @@ def detect_disease(image_path, plant_name):
 
     logger.info("Stage 2: %s (%.1f%%) [%.0fms]", display_label, confidence * 100, latency)
 
-    # Grad-CAM for disease (skip if healthy)
+    
     gradcam = None
     if display_label and "healthy" not in display_label.lower():
         try:
@@ -533,34 +515,33 @@ def detect_disease(image_path, plant_name):
     return display_label, raw_label, confidence, scores, advice, gradcam, True, latency
 
 
-# ---------------------------------------------------------------------------
-# Main Pipeline  (matches notebook Cell 9)
-# ---------------------------------------------------------------------------
+
+
+
 
 def run_prediction(image_path, plant_override=None, confidence_threshold=None):
-    """Run the full two-stage pipeline and return a result dict."""
+
     t0 = time.perf_counter()
     preprocess_ms = (time.perf_counter() - t0) * 1000.0
 
     stage1_ms = 0.0
     stage2_ms = 0.0
 
-    # Stage 1: Plant identification
+    
     if plant_override:
         plant_name = plant_override.strip().title()
-        plant_conf = 1.0  # 100% as fraction
+        plant_conf = 1.0  
         plant_scores = [(plant_name, 100.0)]
         plant_gradcam = None
     else:
         try:
-            plant_name, plant_conf, plant_scores, plant_gradcam, stage1_ms = \
-                identify_plant(image_path)
+            plant_name, plant_conf, plant_scores, plant_gradcam, stage1_ms =                identify_plant(image_path)
         except Exception as exc:
             logger.error("Stage 1 failed: %s", exc)
             return _result(status="failed", message="Plant identification failed.",
                            preprocessing_latency_ms=preprocess_ms)
 
-        # Notebook: "Unknown Plant" means below threshold or "Others"
+        
         if plant_name == "Unknown Plant":
             return _result(
                 plant_name=plant_name, plant_confidence=plant_conf * 100.0,
@@ -580,11 +561,9 @@ def run_prediction(image_path, plant_override=None, confidence_threshold=None):
             stage1_latency_ms=stage1_ms, preprocessing_latency_ms=preprocess_ms,
         )
 
-    # Stage 2: Disease detection
+    
     try:
-        display_label, raw_label, disease_conf, disease_scores, advice, \
-            disease_gradcam, has_model, stage2_ms = \
-            detect_disease(image_path, plant_name)
+        display_label, raw_label, disease_conf, disease_scores, advice,            disease_gradcam, has_model, stage2_ms =            detect_disease(image_path, plant_name)
     except Exception as exc:
         logger.error("Stage 2 failed: %s", exc)
         return _result(
@@ -604,8 +583,8 @@ def run_prediction(image_path, plant_override=None, confidence_threshold=None):
 
     is_healthy = display_label is not None and "healthy" in display_label.lower()
 
-    # Notebook doesn't have a separate disease confidence threshold check,
-    # but we keep low-confidence reporting for server UX
+    
+    
     if not is_healthy and disease_conf < CONFIDENCE_THRESHOLD:
         return _result(
             plant_name=plant_name, plant_confidence=plant_conf * 100.0,
@@ -664,12 +643,12 @@ def _result(
     }
 
 
-# ---------------------------------------------------------------------------
-# Warm-up
-# ---------------------------------------------------------------------------
+
+
+
 
 def warm_up_models():
-    """Pre-load all models at Django startup."""
+
     logger.info("Warming up models...")
     _get_plant_model()
     for plant in DISEASE_CLASSES:

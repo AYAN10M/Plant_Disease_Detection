@@ -1,5 +1,5 @@
-#!/usr/bin/env python
-"""Django management entry point for Midori."""
+
+
 import os
 import sys
 

@@ -8,7 +8,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # ── Stage-1 Grad-CAM field ─────────────────────────────────────────
+        
         migrations.AddField(
             model_name="detection",
             name="plant_gradcam_image",
@@ -16,7 +16,7 @@ class Migration(migrations.Migration):
                 blank=True, null=True, upload_to="detections/gradcam_plant/"
             ),
         ),
-        # ── Stage-1 confidence & all-class scores ─────────────────────────
+        
         migrations.AddField(
             model_name="detection",
             name="plant_confidence",
@@ -27,19 +27,19 @@ class Migration(migrations.Migration):
             name="plant_scores",
             field=models.JSONField(blank=True, default=list),
         ),
-        # ── Stage-2 all-class scores ───────────────────────────────────────
+        
         migrations.AddField(
             model_name="detection",
             name="disease_scores",
             field=models.JSONField(blank=True, default=list),
         ),
-        # ── Treatment advice ───────────────────────────────────────────────
+        
         migrations.AddField(
             model_name="detection",
             name="advice",
             field=models.TextField(blank=True),
         ),
-        # ── Rename gradcam upload_to (keep field name for compat) ──────────
+        
         migrations.AlterField(
             model_name="detection",
             name="gradcam_image",
@@ -47,7 +47,7 @@ class Migration(migrations.Migration):
                 blank=True, null=True, upload_to="detections/gradcam_disease/"
             ),
         ),
-        # ── Extend status choices ──────────────────────────────────────────
+        
         migrations.AlterField(
             model_name="detection",
             name="status",

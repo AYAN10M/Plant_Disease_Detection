@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import 'fullscreen_image_viewer.dart';
 
-/// Data for a single page in the image slider.
 class ImageSlide {
   final String title;
   final Widget child;
@@ -18,9 +17,6 @@ class ImageSlide {
   });
 }
 
-/// Swipeable image viewer — shows one image at a time with animated
-/// dot indicators, arrow navigation, and tap-to-fullscreen.
-/// Slide 1 = Original uploaded photo, Slide 2 = Grad-CAM heatmap.
 class ImageSlider extends StatefulWidget {
   const ImageSlider({
     super.key,
@@ -28,9 +24,6 @@ class ImageSlider extends StatefulWidget {
     this.height = 220,
   });
 
-  /// Creates slides from live scan data.
-  /// Slide 1: Original uploaded photo
-  /// Slide 2: Disease Grad-CAM (the main heatmap)
   factory ImageSlider.fromScanData({
     Key? key,
     required Uint8List? selectedImageBytes,
@@ -49,7 +42,7 @@ class ImageSlider extends StatefulWidget {
       ));
     }
 
-    // Show disease Grad-CAM as the second slide
+
     final camBytes = diseaseGradcamBytes ?? plantGradcamBytes;
     if (camBytes != null) {
       slides.add(ImageSlide(
@@ -73,7 +66,6 @@ class ImageSlider extends StatefulWidget {
     return ImageSlider(key: key, slides: slides, height: height);
   }
 
-  /// Creates slides from a saved history entry.
   factory ImageSlider.fromHistoryEntry({
     Key? key,
     required Uint8List? imageBytes,
@@ -145,7 +137,7 @@ class _ImageSliderState extends State<ImageSlider> {
 
     return Column(
       children: [
-        // Image page view
+
         Container(
           height: widget.height,
           decoration: BoxDecoration(
@@ -202,7 +194,7 @@ class _ImageSliderState extends State<ImageSlider> {
                     );
                   },
                 ),
-                // Arrow navigation
+
                 if (widget.slides.length > 1) ...[
                   if (_currentPage > 0)
                     Positioned(
@@ -225,7 +217,7 @@ class _ImageSliderState extends State<ImageSlider> {
         ),
         const SizedBox(height: 10),
 
-        // Title + dot indicators
+
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [

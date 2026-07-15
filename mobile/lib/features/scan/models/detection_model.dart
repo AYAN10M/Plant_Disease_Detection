@@ -1,24 +1,17 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helper
-// ─────────────────────────────────────────────────────────────────────────────
 
-/// Convert a raw model class label to a human-readable string.
-/// e.g. "Apple___Apple_scab" → "Apple scab"
 String _humanizeModelLabel(String label) {
   final cleaned = label.replaceAll(RegExp(r'^.*?_{2,}'), '');
   return cleaned.replaceAll('_', ' ').trim();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Score entry — used for both plant_scores and disease_scores
-// ─────────────────────────────────────────────────────────────────────────────
+
 
 class ConfidenceScore {
   final String name;
-  final double confidence; // 0–1
+  final double confidence;
 
   const ConfidenceScore({required this.name, required this.confidence});
 
@@ -29,33 +22,31 @@ class ConfidenceScore {
       );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Detection result  (maps to data.* in the API response)
-// ─────────────────────────────────────────────────────────────────────────────
+
 
 class DetectionResult {
   final int id;
 
-  // Stage-1
+
   final String plantName;
-  final double plantConfidence;   // 0–1
+  final double plantConfidence;
   final String plantConfidencePct;
   final List<ConfidenceScore> plantScores;
   final String? plantGradcamImageUrl;
 
-  // Stage-2
+
   final String? diseaseName;
   final String? diseaseCause;
   final String? diseaseDescription;
   final String? diseaseRemedy;
   final String? diseasePrevention;
-  final double confidence;        // 0–1  (disease confidence)
+  final double confidence;
   final String confidencePct;
   final List<ConfidenceScore> diseaseScores;
-  final String? gradcamImageUrl;  // Stage-2 Grad-CAM
+  final String? gradcamImageUrl;
   final String? advice;
 
-  // Shared
+
   final String? uploadedImageUrl;
   final String status;
   final bool isHealthy;
@@ -92,7 +83,7 @@ class DetectionResult {
       diseaseName = fallbackDiseaseName;
     }
 
-    // plant_scores  [{"name": "Apple", "confidence": 0.873}, ...]
+
     final rawPlantScores = json['plant_scores'];
     final List<ConfidenceScore> plantScores = rawPlantScores is List
         ? rawPlantScores
@@ -101,7 +92,7 @@ class DetectionResult {
             .toList()
         : [];
 
-    // disease_scores
+
     final rawDiseaseScores = json['disease_scores'];
     final List<ConfidenceScore> diseaseScores = rawDiseaseScores is List
         ? rawDiseaseScores
@@ -134,9 +125,7 @@ class DetectionResult {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// API response wrapper
-// ─────────────────────────────────────────────────────────────────────────────
+
 
 class DetectionApiResponse {
   final String status;
@@ -167,7 +156,6 @@ class DetectionApiResponse {
     );
   }
 
-  /// True if this result represents a healthy plant by any signal.
   bool get effectivelyHealthy =>
       isHealthy ||
       status == 'healthy' ||
@@ -176,30 +164,28 @@ class DetectionApiResponse {
       (data?.isHealthy ?? false);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// History entry  (persisted locally in SharedPreferences)
-// ─────────────────────────────────────────────────────────────────────────────
+
 
 class DetectionHistoryEntry {
   final DateTime createdAt;
 
-  // Stage-1
+
   final String plantName;
-  final double plantConfidence;     // 0–1
+  final double plantConfidence;
   final List<Map<String, dynamic>> plantScores;
   final String? plantGradcamBase64;
 
-  // Stage-2
+
   final String? diseaseName;
   final String? diseaseCause;
   final String? diseaseDescription;
   final String? diseaseRemedy;
   final String? diseasePrevention;
-  final double confidence;          // 0–1  (disease)
+  final double confidence;
   final List<Map<String, dynamic>> diseaseScores;
   final String? advice;
 
-  // Shared
+
   final bool isHealthy;
   final String? message;
   final String? imageBase64;
@@ -227,7 +213,7 @@ class DetectionHistoryEntry {
     this.gradcamBase64,
   });
 
-  // ── Decoded image bytes ─────────────────────────────────────────────────
+
 
   Uint8List? get imageBytes {
     if (imageBase64 == null || imageBase64!.isEmpty) return null;
@@ -256,7 +242,7 @@ class DetectionHistoryEntry {
     }
   }
 
-  // ── Factory — build from API result + fetched image bytes ───────────────
+
 
   factory DetectionHistoryEntry.fromDetection(
     DetectionResult result,
@@ -292,7 +278,7 @@ class DetectionHistoryEntry {
     );
   }
 
-  // ── JSON persistence ─────────────────────────────────────────────────────
+
 
   Map<String, dynamic> toJson() => {
         'createdAt':          createdAt.toIso8601String(),

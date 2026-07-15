@@ -22,7 +22,7 @@ class Disease(models.Model):
                         choices=SEVERITY_CHOICES,
                         default='moderate'
                       )
-    affected_parts  = models.CharField(max_length=200, blank=True)  # leaf, stem, root
+    affected_parts  = models.CharField(max_length=200, blank=True)  
     disease_image   = models.ImageField(upload_to='diseases/', null=True, blank=True)
     created_at      = models.DateTimeField(auto_now_add=True)
 
